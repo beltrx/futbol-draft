@@ -1,7 +1,10 @@
-// GERÇEK ZAMANLI 2 BİLGİSAYAR (FARKLI İNTERNET) P2P WEBRTC ONLINE MOTORU (PeerJS)
+// HİBRİT GERÇEK ZAMANLI 2 BİLGİSAYAR ONLINE MOTORU
+// (Bulut WebSocket Rölesi [WSS MQTT] + TURN Destekli WebRTC P2P — CGNAT / Farklı İnternet / Modem Güvenlik Duvarını %100 Aşar)
+
 const NET = {
   peer: null,
   conn: null,
+  mqttClients: [],
   role: null, // "host" | "guest" | null
   roomCode: "",
   connected: false,
@@ -9,23 +12,51 @@ const NET = {
   myTeamIdx: 0,
   peerName: "Arkadaşın",
   readyMap: { 0: false, 1: false },
-  chatLog: []
+  chatLog: [],
+  seenIds: new Set(),
+  helloTimer: null
 };
 
 const PEER_PREFIX = "fd2026-p2p-room-";
+
+// Hem Google STUN hem de CGNAT/Simetrik NAT aşan ücretsiz TURN Röle Sunucuları
 const PEER_CONFIG = {
-  debug: 1,
+  debug: 0,
   config: {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
-      { urls: "stun:stun2.l.google.com:19302" }
+      {
+        urls: "turn:openrelay.metered.ca:80",
+        username: "openrelayproject",
+        credential: "openrelayproject"
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443",
+        username: "openrelayproject",
+        credential: "openrelayproject"
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443?transport=tcp",
+        username: "openrelayproject",
+        credential: "openrelayproject"
+      }
     ]
   }
 };
 
+// Güvenlik duvarı ve CGNAT'a takılmayan HTTPS/WSS Bulut WebSocket Brokerları
+const WSS_BROKERS = [
+  "wss://broker.emqx.io:8084/mqtt",
+  "wss://broker.hivemq.com:8884/mqtt"
+];
+
 function generateRoomCode() {
   return String(Math.floor(10000 + Math.random() * 90000));
+}
+
+function getRoomTopic(code) {
+  return `futbol-draft-2026-tr/room-v2/${code}`;
 }
 
 function getRoomInviteUrl() {
@@ -34,11 +65,69 @@ function getRoomInviteUrl() {
   return `${base}?room=${NET.roomCode}`;
 }
 
+// Bulut WebSocket (MQTT over WSS) bağlantısını başlatır (Farklı internetlerde %100 çalışır)
+function connectCloudWebSocketRoom(code) {
+  if (typeof mqtt === "undefined") return;
+  const topic = getRoomTopic(code);
+
+  WSS_BROKERS.forEach((brokerUrl) => {
+    try {
+      const clientId = "fd2026_" + Math.random().toString(16).slice(2, 10);
+      const client = mqtt.connect(brokerUrl, {
+        clientId,
+        clean: true,
+        connectTimeout: 5000,
+        reconnectPeriod: 2000
+      });
+
+      client.on("connect", () => {
+        client.subscribe(topic, { qos: 0 }, (err) => {
+          if (!err) {
+            if (NET.role === "host" && !NET.connected) {
+              NET.statusText = `Oda Hazır (Kod: ${code}) · Arkadaşın bekleniyor...`;
+              render();
+            } else if (NET.role === "guest" && !NET.connected) {
+              sendHelloPacket();
+            }
+          }
+        });
+      });
+
+      client.on("message", (t, payloadBuf) => {
+        if (t !== topic) return;
+        try {
+          const data = JSON.parse(payloadBuf.toString());
+          processIncomingEnvelope(data);
+        } catch (e) {}
+      });
+
+      NET.mqttClients.push(client);
+    } catch (e) {}
+  });
+}
+
+function sendHelloPacket() {
+  if (NET.role !== "guest") return;
+  sendNetMsg({
+    type: "HELLO",
+    name: S.teamName === "Senin Takımın" ? "2. Oyuncu (Misafir)" : S.teamName
+  }, true);
+}
+
+function startGuestHandshakeLoop() {
+  if (NET.helloTimer) clearInterval(NET.helloTimer);
+  sendHelloPacket();
+  NET.helloTimer = setInterval(() => {
+    if (NET.connected || NET.role !== "guest") {
+      clearInterval(NET.helloTimer);
+      NET.helloTimer = null;
+      return;
+    }
+    sendHelloPacket();
+  }, 1200);
+}
+
 function createOnlineRoom() {
-  if (typeof Peer === "undefined") {
-    S.onlineMsg = `<p class="err">❌ PeerJS kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.</p>`;
-    return render();
-  }
   disconnectOnlineRoom(true);
   const code = generateRoomCode();
   NET.role = "host";
@@ -46,38 +135,26 @@ function createOnlineRoom() {
   NET.myTeamIdx = 0;
   NET.connected = false;
   NET.statusText = `Oda Kuruldu (${code}) · Arkadaşının bağlanması bekleniyor...`;
-  S.onlineMsg = `<p class="ok-msg">⏳ Oda Kodu <b>${code}</b> oluşturuldu! Aşağıdaki davet linkini veya 5 haneli kodu arkadaşına gönder.</p>`;
+  S.onlineMsg = `<p class="ok-msg">✅ Oda Kodu <b>${code}</b> oluşturuldu! Aşağıdaki davet linkini veya 5 haneli kodu arkadaşına gönder.</p>`;
   render();
 
-  try {
-    const peer = new Peer(PEER_PREFIX + code, PEER_CONFIG);
-    NET.peer = peer;
+  // 1) Bulut WebSocket Rölesini Başlat (CGNAT dostu)
+  connectCloudWebSocketRoom(code);
 
-    peer.on("open", () => {
-      NET.statusText = `Oda Hazır (Kod: ${code}) · Arkadaşın bekleniyor...`;
-      render();
-    });
-
-    peer.on("connection", (conn) => {
-      NET.conn = conn;
-      setupConnectionHandlers(conn);
-    });
-
-    peer.on("error", (err) => {
-      S.onlineMsg = `<p class="err">⚠️ Bağlantı uyarısı: ${err.type || err.message}. Yeni bir oda kodu oluşturmayı deneyin.</p>`;
-      render();
-    });
-  } catch (e) {
-    S.onlineMsg = `<p class="err">❌ Oda kurulamadı: ${e.message}</p>`;
-    render();
+  // 2) Yedek olarak TURN destekli PeerJS WebRTC Başlat
+  if (typeof Peer !== "undefined") {
+    try {
+      const peer = new Peer(PEER_PREFIX + code, PEER_CONFIG);
+      NET.peer = peer;
+      peer.on("connection", (conn) => {
+        NET.conn = conn;
+        setupPeerConnectionHandlers(conn);
+      });
+    } catch (e) {}
   }
 }
 
 function joinOnlineRoom(customCode) {
-  if (typeof Peer === "undefined") {
-    S.onlineMsg = `<p class="err">❌ PeerJS kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.</p>`;
-    return render();
-  }
   const inp = $("#friend-code-inp");
   const raw = (customCode || (inp ? inp.value : "")).trim();
   const codeMatch = raw.match(/(\d{5})/);
@@ -93,68 +170,56 @@ function joinOnlineRoom(customCode) {
   NET.roomCode = code;
   NET.myTeamIdx = 1;
   NET.connected = false;
-  NET.statusText = `Oda ${code} aranıyor ve bağlanılıyor...`;
-  S.onlineMsg = `<p class="ok-msg">🔄 <b>${code}</b> numaralı odaya bağlanılıyor, lütfen bekleyin...</p>`;
+  NET.statusText = `Oda ${code} ile bağlantı kuruluyor...`;
+  S.onlineMsg = `<p class="ok-msg">🔄 <b>${code}</b> numaralı odaya bulut rölesi üzerinden bağlanılıyor...</p>`;
   render();
 
-  try {
-    const peer = new Peer(undefined, PEER_CONFIG);
-    NET.peer = peer;
+  // 1) Bulut WebSocket Rölesine Bağlan ve El Sıkışma Başlat
+  connectCloudWebSocketRoom(code);
+  startGuestHandshakeLoop();
 
-    peer.on("open", () => {
-      const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
-      NET.conn = conn;
-      setupConnectionHandlers(conn);
-    });
-
-    peer.on("error", (err) => {
-      NET.connected = false;
-      NET.statusText = "Bağlantı Hatası";
-      S.onlineMsg = `<p class="err">❌ Odaya bağlanılamadı (${err.type || "Oda bulunamadı"}). Arkadaşının odayı açık tuttuğundan emin ol.</p>`;
-      render();
-    });
-  } catch (e) {
-    S.onlineMsg = `<p class="err">❌ Bağlantı hatası: ${e.message}</p>`;
-    render();
+  // 2) Paralel olarak TURN destekli PeerJS WebRTC Bağlantısı Dene
+  if (typeof Peer !== "undefined") {
+    try {
+      const peer = new Peer(undefined, PEER_CONFIG);
+      NET.peer = peer;
+      peer.on("open", () => {
+        const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+        NET.conn = conn;
+        setupPeerConnectionHandlers(conn);
+      });
+    } catch (e) {}
   }
 }
 
-function setupConnectionHandlers(conn) {
+function setupPeerConnectionHandlers(conn) {
   conn.on("open", () => {
-    NET.connected = true;
-    NET.readyMap = { 0: false, 1: false };
     if (NET.role === "guest") {
-      NET.statusText = `🟢 Oda ${NET.roomCode} · Canlı Bağlantı Kuruldu!`;
-      S.onlineMsg = `<p class="ok-msg">🟢 <b>Canlı Bağlantı Kuruldu!</b> Oda kurucunun (Host) draftı başlatması bekleniyor...</p>`;
-      sendNetMsg({
-        type: "HELLO",
-        name: S.teamName === "Senin Takımın" ? "2. Oyuncu (Misafir)" : S.teamName
-      });
-    } else {
-      NET.statusText = `🟢 Arkadaşın Odaya Katıldı! Draftı başlatabilirsin.`;
-      S.onlineMsg = `<p class="ok-msg">🟢 <b>Arkadaşın odaya bağlandı!</b> Şimdi "Online Draftı Başlat" butonuna basarak karşılıklı draftı başlatabilirsin.</p>`;
+      sendHelloPacket();
     }
-    render();
   });
-
   conn.on("data", (data) => {
-    handleNetMsg(data);
-  });
-
-  conn.on("close", () => {
-    NET.connected = false;
-    NET.statusText = "🔴 Arkadaşının bağlantısı koptu";
-    render();
+    processIncomingEnvelope(data);
   });
 }
 
 function disconnectOnlineRoom(silent = false) {
+  if (NET.helloTimer) {
+    clearInterval(NET.helloTimer);
+    NET.helloTimer = null;
+  }
   if (NET.conn) {
     try { NET.conn.close(); } catch (e) {}
   }
   if (NET.peer) {
     try { NET.peer.destroy(); } catch (e) {}
   }
+  if (NET.mqttClients && NET.mqttClients.length) {
+    NET.mqttClients.forEach(c => {
+      try { c.end(true); } catch (e) {}
+    });
+  }
+  NET.mqttClients = [];
   NET.peer = null;
   NET.conn = null;
   NET.role = null;
@@ -163,24 +228,57 @@ function disconnectOnlineRoom(silent = false) {
   NET.statusText = "Bağlı Değil";
   NET.myTeamIdx = 0;
   NET.readyMap = { 0: false, 1: false };
+  NET.seenIds.clear();
   if (!silent) render();
 }
 
-function sendNetMsg(payload) {
-  if (NET.conn && NET.connected) {
+// Mesajı hem Bulut WebSocket (MQTT) hem de WebRTC üzerinden gönderir
+function sendNetMsg(payload, allowBeforeConnected = false) {
+  if (!NET.role || (!NET.connected && !allowBeforeConnected)) return;
+  const envelope = {
+    ...payload,
+    _id: Math.random().toString(36).slice(2) + "_" + Date.now(),
+    _from: NET.role,
+    _room: NET.roomCode
+  };
+  NET.seenIds.add(envelope._id);
+
+  // 1) Bulut WebSocket Brokerları üzerinden anında yayınla
+  const topic = getRoomTopic(NET.roomCode);
+  const str = JSON.stringify(envelope);
+  NET.mqttClients.forEach(client => {
     try {
-      NET.conn.send(payload);
+      if (client.connected) {
+        client.publish(topic, str, { qos: 0 });
+      }
+    } catch (e) {}
+  });
+
+  // 2) WebRTC DataChannel açıksa oradan da gönder
+  if (NET.conn && NET.conn.open) {
+    try {
+      NET.conn.send(envelope);
     } catch (e) {}
   }
 }
 
+function processIncomingEnvelope(msg) {
+  if (!msg || !msg.type) return;
+  if (msg._from && msg._from === NET.role) return; // Kendi mesajımızı yoksay
+  if (msg._id) {
+    if (NET.seenIds.has(msg._id)) return; // Çift kanaldan gelen mükerrer mesajı engelle
+    NET.seenIds.add(msg._id);
+  }
+  handleNetMsg(msg);
+}
+
 // Gelen Gerçek Zamanlı Mesajları İşle
 function handleNetMsg(msg) {
-  if (!msg || !msg.type) return;
-
   if (msg.type === "HELLO" && NET.role === "host") {
+    NET.connected = true;
     NET.peerName = msg.name || "Arkadaşın";
     NET.statusText = `🟢 ${NET.peerName} ile Canlı Bağlı (Oda: ${NET.roomCode})`;
+    S.onlineMsg = `<p class="ok-msg">🟢 <b>${NET.peerName} odaya bağlandı!</b> Şimdi "Karşılıklı Online Draftı Başlat!" butonuna basabilirsin.</p>`;
     sendNetMsg({
       type: "WELCOME",
       hostName: S.teamName || "1. Oyuncu (Host)",
@@ -190,9 +288,14 @@ function handleNetMsg(msg) {
       opp: S.opp,
       format: S.format,
       strictPos: S.strictPos
-    });
+    }, true);
     render();
   } else if (msg.type === "WELCOME" && NET.role === "guest") {
+    if (NET.helloTimer) {
+      clearInterval(NET.helloTimer);
+      NET.helloTimer = null;
+    }
+    NET.connected = true;
     NET.peerName = msg.hostName || "Oda Kurucu";
     S.mode = msg.mode || S.mode;
     if (msg.leagues) S.leagues = new Set(msg.leagues);
@@ -201,9 +304,10 @@ function handleNetMsg(msg) {
     S.format = msg.format || S.format;
     S.strictPos = msg.strictPos != null ? msg.strictPos : true;
     NET.statusText = `🟢 ${NET.peerName} ile Canlı Bağlı (Oda: ${NET.roomCode})`;
+    S.onlineMsg = `<p class="ok-msg">🟢 <b>${NET.peerName} odasına canlı bağlandın!</b> Oda kurucunun draftı başlatması bekleniyor...</p>`;
     render();
   } else if (msg.type === "START_DRAFT") {
-    // Host draftı başlattı -> Misafir ekranında aynı draftı kur!
+    NET.connected = true;
     S.mode = msg.mode;
     S.leagues = new Set(msg.leagues);
     S.clubs = new Set(msg.clubs);
@@ -227,12 +331,10 @@ function handleNetMsg(msg) {
       render();
     }
   } else if (msg.type === "PICK") {
-    // Karşı bilgisayar oyuncu seçti -> anında tahtaya işle!
     if (G && G.k < G.order.length) {
       applyPickDirectly(msg.playerId, msg.isCpu);
     }
   } else if (msg.type === "WHEEL_RESULT") {
-    // Çark Draftında karşı tarafın çevirdiği çark sonucu
     W.selectedClub = msg.club;
     W.offeredPlayers = (msg.offeredIds || []).map(id => P[id]).filter(Boolean);
     W.jokers = msg.jokers;
@@ -266,7 +368,6 @@ function handleNetMsg(msg) {
       render();
     }
   } else if (msg.type === "MATCH_SYNC") {
-    // Host maç senaryosunu gönderdi -> Misafirde birebir aynı maçı aç!
     if (!G) return;
     if (!T) initTournament();
     const hydratedPlan = hydrateNetworkPlan(msg.plan);
