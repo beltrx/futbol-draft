@@ -19,7 +19,6 @@ const NET = {
 
 const PEER_PREFIX = "fd2026-p2p-room-";
 
-// Hem Google STUN hem de CGNAT/Simetrik NAT aşan ücretsiz TURN Röle Sunucuları
 const PEER_CONFIG = {
   debug: 0,
   config: {
@@ -45,7 +44,6 @@ const PEER_CONFIG = {
   }
 };
 
-// Güvenlik duvarı ve CGNAT'a takılmayan HTTPS/WSS Bulut WebSocket Brokerları
 const WSS_BROKERS = [
   "wss://broker.emqx.io:8084/mqtt",
   "wss://broker.hivemq.com:8884/mqtt"
@@ -65,7 +63,6 @@ function getRoomInviteUrl() {
   return `${base}?room=${NET.roomCode}`;
 }
 
-// Bulut WebSocket (MQTT over WSS) bağlantısını başlatır (Farklı internetlerde %100 çalışır)
 function connectCloudWebSocketRoom(code) {
   if (typeof mqtt === "undefined") return;
   const topic = getRoomTopic(code);
@@ -135,13 +132,11 @@ function createOnlineRoom() {
   NET.myTeamIdx = 0;
   NET.connected = false;
   NET.statusText = `Oda Kuruldu (${code}) · Arkadaşının bağlanması bekleniyor...`;
-  S.onlineMsg = `<p class="ok-msg">✅ Oda Kodu <b>${code}</b> oluşturuldu! Aşağıdaki davet linkini veya 5 haneli kodu arkadaşına gönder.</p>`;
+  S.onlineMsg = `<p class="ok-msg">Oda Kodu <b>${code}</b> oluşturuldu. Aşağıdaki davet linkini veya 5 haneli kodu arkadaşına gönder.</p>`;
   render();
 
-  // 1) Bulut WebSocket Rölesini Başlat (CGNAT dostu)
   connectCloudWebSocketRoom(code);
 
-  // 2) Yedek olarak TURN destekli PeerJS WebRTC Başlat
   if (typeof Peer !== "undefined") {
     try {
       const peer = new Peer(PEER_PREFIX + code, PEER_CONFIG);
@@ -171,14 +166,12 @@ function joinOnlineRoom(customCode) {
   NET.myTeamIdx = 1;
   NET.connected = false;
   NET.statusText = `Oda ${code} ile bağlantı kuruluyor...`;
-  S.onlineMsg = `<p class="ok-msg">🔄 <b>${code}</b> numaralı odaya bulut rölesi üzerinden bağlanılıyor...</p>`;
+  S.onlineMsg = `<p class="ok-msg"><b>${code}</b> numaralı odaya bulut rölesi üzerinden bağlanılıyor...</p>`;
   render();
 
-  // 1) Bulut WebSocket Rölesine Bağlan ve El Sıkışma Başlat
   connectCloudWebSocketRoom(code);
   startGuestHandshakeLoop();
 
-  // 2) Paralel olarak TURN destekli PeerJS WebRTC Bağlantısı Dene
   if (typeof Peer !== "undefined") {
     try {
       const peer = new Peer(undefined, PEER_CONFIG);
@@ -232,7 +225,6 @@ function disconnectOnlineRoom(silent = false) {
   if (!silent) render();
 }
 
-// Mesajı hem Bulut WebSocket (MQTT) hem de WebRTC üzerinden gönderir
 function sendNetMsg(payload, allowBeforeConnected = false) {
   if (!NET.role || (!NET.connected && !allowBeforeConnected)) return;
   const envelope = {
@@ -243,7 +235,6 @@ function sendNetMsg(payload, allowBeforeConnected = false) {
   };
   NET.seenIds.add(envelope._id);
 
-  // 1) Bulut WebSocket Brokerları üzerinden anında yayınla
   const topic = getRoomTopic(NET.roomCode);
   const str = JSON.stringify(envelope);
   NET.mqttClients.forEach(client => {
@@ -254,7 +245,6 @@ function sendNetMsg(payload, allowBeforeConnected = false) {
     } catch (e) {}
   });
 
-  // 2) WebRTC DataChannel açıksa oradan da gönder
   if (NET.conn && NET.conn.open) {
     try {
       NET.conn.send(envelope);
@@ -264,21 +254,20 @@ function sendNetMsg(payload, allowBeforeConnected = false) {
 
 function processIncomingEnvelope(msg) {
   if (!msg || !msg.type) return;
-  if (msg._from && msg._from === NET.role) return; // Kendi mesajımızı yoksay
+  if (msg._from && msg._from === NET.role) return;
   if (msg._id) {
-    if (NET.seenIds.has(msg._id)) return; // Çift kanaldan gelen mükerrer mesajı engelle
+    if (NET.seenIds.has(msg._id)) return;
     NET.seenIds.add(msg._id);
   }
   handleNetMsg(msg);
 }
 
-// Gelen Gerçek Zamanlı Mesajları İşle
 function handleNetMsg(msg) {
   if (msg.type === "HELLO" && NET.role === "host") {
     NET.connected = true;
     NET.peerName = msg.name || "Arkadaşın";
-    NET.statusText = `🟢 ${NET.peerName} ile Canlı Bağlı (Oda: ${NET.roomCode})`;
-    S.onlineMsg = `<p class="ok-msg">🟢 <b>${NET.peerName} odaya bağlandı!</b> Şimdi "Karşılıklı Online Draftı Başlat!" butonuna basabilirsin.</p>`;
+    NET.statusText = `${NET.peerName} ile Canlı Bağlı (Oda: ${NET.roomCode})`;
+    S.onlineMsg = `<p class="ok-msg"><b>${NET.peerName} odaya bağlandı!</b> Şimdi lig ve takım seçimine geçip draftı başlatabilirsin.</p>`;
     sendNetMsg({
       type: "WELCOME",
       hostName: S.teamName || "1. Oyuncu (Host)",
@@ -303,8 +292,8 @@ function handleNetMsg(msg) {
     S.opp = msg.opp != null ? msg.opp : S.opp;
     S.format = msg.format || S.format;
     S.strictPos = msg.strictPos != null ? msg.strictPos : true;
-    NET.statusText = `🟢 ${NET.peerName} ile Canlı Bağlı (Oda: ${NET.roomCode})`;
-    S.onlineMsg = `<p class="ok-msg">🟢 <b>${NET.peerName} odasına canlı bağlandın!</b> Oda kurucunun draftı başlatması bekleniyor...</p>`;
+    NET.statusText = `${NET.peerName} ile Canlı Bağlı (Oda: ${NET.roomCode})`;
+    S.onlineMsg = `<p class="ok-msg"><b>${NET.peerName} odasına canlı bağlandın!</b> Oda kurucunun draftı başlatması bekleniyor...</p>`;
     render();
   } else if (msg.type === "START_DRAFT") {
     NET.connected = true;
@@ -355,12 +344,22 @@ function handleNetMsg(msg) {
       G.k = G.order.length;
       G.teams.forEach(ensureTeamLineup);
       initTournament();
-      S.view = "result";
+      S.view = "identity";
+      render();
+    }
+  } else if (msg.type === "IDENTITY_SYNC") {
+    if (G && G.teams[msg.teamIdx]) {
+      const tm = G.teams[msg.teamIdx];
+      tm.name = msg.name || tm.name;
+      tm.customIdentity = msg.customIdentity || tm.customIdentity;
+      tm.identityDone = !!msg.identityDone;
       render();
     }
   } else if (msg.type === "LINEUP_SYNC") {
     if (G && G.teams[msg.teamIdx]) {
       const tm = G.teams[msg.teamIdx];
+      tm.name = msg.name || tm.name;
+      tm.customIdentity = msg.customIdentity || tm.customIdentity;
       tm.formation = msg.formation || "4-3-3";
       tm.starters = (msg.starterIds || []).map(id => P[id]).filter(Boolean);
       tm.bench = (msg.benchIds || []).map(id => P[id]).filter(Boolean);
@@ -453,10 +452,10 @@ function renderNetStatusBar() {
       </div>
       ${NET.connected ? `
         <div class="chat-strip">
-          ${lastChat ? `<span class="chat-bubble">💬 <b>${lastChat.sender}:</b> ${lastChat.text}</span>` : ""}
-          <button class="sm" onclick="sendChatMessage('🔥 Harika seçim!')">🔥</button>
-          <button class="sm" onclick="sendChatMessage('😱 O oyuncuyu ben alacaktım!')">😱</button>
-          <button class="sm" onclick="sendChatMessage('⚽ Maça hazır mısın?')">⚽</button>
+          ${lastChat ? `<span class="chat-bubble"><b>${lastChat.sender}:</b> ${lastChat.text}</span>` : ""}
+          <button class="sm" onclick="sendChatMessage('Harika seçim!')">İyi Seçim</button>
+          <button class="sm" onclick="sendChatMessage('O oyuncuyu ben alacaktım!')">Ben Alacaktım</button>
+          <button class="sm" onclick="sendChatMessage('Maça hazır mısın?')">Hazır mısın?</button>
           <input id="net-chat-inp" placeholder="Mesaj yaz..." style="width:130px;padding:4px 8px;font-size:.8rem" onkeydown="if(event.key==='Enter')sendChatMessage()">
           <button class="sm pri" onclick="sendChatMessage()">Gönder</button>
         </div>

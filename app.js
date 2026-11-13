@@ -1,22 +1,74 @@
-// ANA UYGULAMA, DRAFT MOTORU, ÇARK DRAFTI, 11+3 KADRO DİZİLİŞİ VE MAÇ SİMÜLATÖRÜ
+// ANA UYGULAMA, 2 ADIMLI KURULUM, DRAFT BİTİMİNDE TAKIM İSMİ & ARMA/LOGO TASARIMCISI, SABİT SLOTLU DİZİLİŞ VE DENGELİ MAÇ SİMÜLATÖRÜ
 
 const MODES = [
-  { id: "classic", name: "Klasik Draft", tag: "En güçlü kadroyu kur", d: "11 asil + 3 yedek oyuncuyu sırayla seç. Reytingler gizlidir, futbol bilginle en iyi kadroyu oluştur!", clubs: "optional", cpu: "best" },
-  { id: "wheel", name: "Çark Draftı", tag: "Takım çarkını çevir", d: "Seçtiğin tüm takımlar çarka yerleşir! Sıran geldiğinde çarkı çevir, çıkan kulübün verdiği oyuncuyu kadrona kat.", clubs: "optional", cpu: "best", wheel: 1 },
-  { id: "club", name: "Kulüp Draftı", tag: "Sadece seçtiğin kulüpler", d: "Belirlediğin kulüplerin oyuncularıyla draft yap. Dev derbiler ve El Clasico kadroları için ideal.", clubs: "required", cpu: "best" },
-  { id: "league", name: "Lig Draftı", tag: "Tek lig veya çoklu lig", d: "Lig seçiciden istediğin ligi seç; o ligdeki tüm kulüpler ve oyuncularla sınır olmadan draft yap.", clubs: "none", cpu: "best" },
-  { id: "random", name: "Rastgele Draft", tag: "Şans kadronu kursun", d: "Seçimler rastgele yapılır. İstersen tek tuşla tüm kadroları tamamla ve maça geç.", clubs: "optional", cpu: "random" },
-  { id: "budget", name: "Bütçe Draftı", tag: "350 M€ · İndirimsiz Sabit Fiyat", d: "350 M€ bütçe ile 14 oyuncu (11 Asil + 3 Yedek) seç. Kalan en ucuz oyunculara para yetmeyecekse sistem uyarır ve alımı iptal eder!", clubs: "optional", cpu: "best", budget: 350 }
+  { id: "classic", name: "Klasik Draft", tag: "Standart Seçim", d: "11 asil ve 3 yedek oyuncuyu sırayla seçerek kadronu oluştur.", clubs: "optional", cpu: "best" },
+  { id: "wheel", name: "Çark Draftı", tag: "Takım Çarkı", d: "Seçilen takımlar çarka yerleşir; çarkın verdiği kulüpten oyuncu kadrona katılır.", clubs: "optional", cpu: "best", wheel: 1 },
+  { id: "club", name: "Kulüp Draftı", tag: "Özel Kulüp Havuzu", d: "Yalnızca belirlediğin kulüplerin oyuncularıyla draft yap.", clubs: "required", cpu: "best" },
+  { id: "league", name: "Lig Draftı", tag: "Tüm Lig Havuzu", d: "Seçtiğin liglerdeki tüm kulüplerle kulüp elemesi olmadan doğrudan drafta başla.", clubs: "none", cpu: "best" },
+  { id: "random", name: "Rastgele Draft", tag: "Şans Seçimi", d: "Seçimler rastgele yapılır; tek tuşla kadroları tamamlayıp maça geçebilirsin.", clubs: "optional", cpu: "random" },
+  { id: "budget", name: "Bütçe Draftı", tag: "360 M€ Bütçe", d: "Dinamik piyasa değerleriyle 360 M€ bütçeyi aşmadan 14 kişilik kadronu kur.", clubs: "optional", cpu: "best", budget: 360 }
 ];
 
+const CUSTOM_SHAPES = [
+  { id: "shield", name: "Kalkan Arma" },
+  { id: "circle", name: "Klasik Daire" },
+  { id: "stripes", name: "Çubuklu Arma" },
+  { id: "diamond", name: "Elmas Arma" },
+  { id: "star", name: "Yıldızlı Arma" }
+];
+
+function renderTeamIdentityBadge(t, size = 24) {
+  if (!t || !t.customIdentity) {
+    return clubLogo("Manchester City", size);
+  }
+  const cid = t.customIdentity;
+  if (cid.type === "club" && cid.club) {
+    return clubLogo(cid.club, size);
+  }
+  const c1 = cid.c1 || "#166534";
+  const c2 = cid.c2 || "#eab308";
+  const sh = cid.shape || "shield";
+  const abbr = ((t.name || "FC").replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]/g, "").slice(0, 3) || "FC").toUpperCase();
+  const txtCol = (c1.toLowerCase() === "#ffffff" || c1.toLowerCase() === "#fde100" || c1.toLowerCase() === "#eab308") ? "#07120d" : "#ffffff";
+
+  if (sh === "circle") {
+    return `<svg class="club-svg" width="${size}" height="${size}" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="15" fill="${c1}" stroke="${c2}" stroke-width="2.2"/>
+      <circle cx="16" cy="16" r="10.5" fill="${c2}" opacity="0.28"/>
+      <text x="16" y="19.5" text-anchor="middle" fill="${txtCol}" font-family="Outfit, sans-serif" font-weight="800" font-size="9.5">${abbr}</text>
+    </svg>`;
+  }
+  if (sh === "stripes") {
+    return `<svg class="club-svg" width="${size}" height="${size}" viewBox="0 0 32 32">
+      <path d="M5,4 H27 V17 C27,24 16,29 16,29 C16,29 5,24 5,17 Z" fill="${c1}" stroke="${c2}" stroke-width="2"/>
+      <path d="M11,5 V25 M16,5 V27 M21,5 V25" stroke="${c2}" stroke-width="3.2"/>
+      <rect x="5" y="11" width="22" height="9" fill="rgba(0,0,0,0.68)"/>
+      <text x="16" y="18.2" text-anchor="middle" fill="#FFFFFF" font-family="Outfit, sans-serif" font-weight="800" font-size="9">${abbr}</text>
+    </svg>`;
+  }
+  if (sh === "diamond") {
+    return `<svg class="club-svg" width="${size}" height="${size}" viewBox="0 0 32 32">
+      <polygon points="16,2 30,16 16,30 2,16" fill="${c1}" stroke="${c2}" stroke-width="2.2"/>
+      <polygon points="16,6 26,16 16,26 6,16" fill="${c2}" opacity="0.25"/>
+      <text x="16" y="19.2" text-anchor="middle" fill="${txtCol}" font-family="Outfit, sans-serif" font-weight="800" font-size="8.8">${abbr}</text>
+    </svg>`;
+  }
+  if (sh === "star") {
+    return `<svg class="club-svg" width="${size}" height="${size}" viewBox="0 0 32 32">
+      <path d="M5,6 H27 V18 C27,24.5 16,29.5 16,29.5 C16,29.5 5,24.5 5,18 Z" fill="${c1}" stroke="${c2}" stroke-width="2"/>
+      <polygon points="16,1.2 17.5,4.2 20.8,4.5 18.2,6.6 19,9.8 16,8 13,9.8 13.8,6.6 11.2,4.5 14.5,4.2" fill="${c2}"/>
+      <text x="16" y="20.5" text-anchor="middle" fill="${txtCol}" font-family="Outfit, sans-serif" font-weight="800" font-size="9">${abbr}</text>
+    </svg>`;
+  }
+  return `<svg class="club-svg" width="${size}" height="${size}" viewBox="0 0 32 32">
+    <path d="M5,4 H27 V17 C27,24 16,29 16,29 C16,29 5,24 5,17 Z" fill="${c1}" stroke="${c2}" stroke-width="2.2"/>
+    <path d="M16,5 H26 V17 C26,22.5 16,27.5 16,27.5 Z" fill="${c2}" opacity="0.32"/>
+    <text x="16" y="19.2" text-anchor="middle" fill="${txtCol}" font-family="Outfit, sans-serif" font-weight="800" font-size="9.2">${abbr}</text>
+  </svg>`;
+}
+
 function cost(p) {
-  const r = p.r || 75;
-  if (r <= 72) return 5;
-  if (r <= 75) return 6 + (r - 72);
-  if (r <= 79) return 9 + Math.round((r - 75) * 1.25);
-  if (r <= 83) return 14 + Math.round((r - 79) * 2.0);
-  if (r <= 87) return 22 + Math.round((r - 83) * 3.5);
-  return 36 + Math.round((r - 87) * 5.0);
+  return p.price != null ? p.price : calcBasePriceWithVariance(p.n, p.r, p.id || 0);
 }
 
 const tier = r => r >= 88 ? "e" : r >= 85 ? "h" : r >= 82 ? "g" : r >= 78 ? "m" : "";
@@ -24,15 +76,15 @@ const rt = r => `<span class="pos-badge pos-MID">★</span>`;
 const posTag = pos => `<span class="pos-badge pos-${pos || 'MID'}">${POS_SHORT[pos || 'MID']}</span>`;
 
 let S = {
-  view: "setup",
+  view: "setup", // "setup" | "clubs" | "draft" | "identity" | "result" | "match"
   mode: "classic",
-  leagues: new Set(["Premier Lig", "La Liga", "Serie A", "Bundesliga", "Ligue 1"]),
+  leagues: new Set(LEAGUES),
   clubs: new Set(),
-  opp: 1, // Varsayılan 1 rakip (2 Bilgisayar Karşılıklı Online veya 1v1 için ideal; 2 veya 3 seçilirse Yarı Final/Final Turnuvası)
+  opp: 1,
   humanCount: 1,
   format: "snake",
   strictPos: true,
-  teamName: "Senin Takımın",
+  teamName: "1. Oyuncu",
   err: "",
   impMsg: "",
   onlineModal: false,
@@ -46,6 +98,7 @@ let M = null;
 let T = null;
 let W = { spinning: false, angle: 0, selectedClub: null, offeredPlayers: [], jokers: 3 };
 let SWAP = { teamIdx: 0, selectedId: null };
+let ID_EDIT = { teamIdx: 0, lgFilter: "" };
 
 const $ = s => document.querySelector(s);
 const app = $("#app");
@@ -58,19 +111,22 @@ function hdr() {
         <div class="logo-badge">FD</div>
         <div>
           <div class="logo">Futbol <span>Draft</span></div>
-          <span class="logo-sub">5 Büyük Lig · 2 PC Canlı Online · Çark & 11+3 Turnuva</span>
+          <span class="logo-sub">2026-27 Sezonu · Kadro Kurulumu & Maç Simülatörü</span>
         </div>
       </div>
       <div class="nav-actions">
+        ${typeof renderGhModal === "function" ? `<button class="sm" onclick="toggleGhModal()">GitHub Dosyaları</button>` : ""}
         <button class="${NET.connected || S.onlineModal ? 'pri' : 'gold'}" onclick="toggleOnlineModal()">
-          🌐 ${NET.connected ? `Canlı Oda (${NET.roomCode})` : "Online Oda Kur / Katıl (2 PC)"}
+          ${NET.connected ? `Canlı Oda (${NET.roomCode})` : "Online Oda (2 PC)"}
         </button>
-        ${G ? `<button onclick="S.view='result';render()">📋 Kadro & Diziliş (11+3)</button>` : ""}
-        ${G ? `<button onclick="goMatchDirect()">🏆 Turnuva & Maç Simülatörü</button>` : ""}
-        ${S.view !== "setup" ? `<button onclick="resetToSetup()">🏠 Ana Menü</button>` : ""}
+        ${G && G.k >= G.order.length ? `<button onclick="S.view='identity';render()">Takım Kimliği & Logo</button>` : ""}
+        ${G ? `<button onclick="S.view='result';render()">Kadro Dizilişi (11+3)</button>` : ""}
+        ${G ? `<button onclick="goMatchDirect()">Turnuva & Maç</button>` : ""}
+        ${S.view !== "setup" ? `<button onclick="resetToSetup()">Ana Menü</button>` : ""}
       </div>
     </header>
     ${renderNetStatusBar()}
+    ${typeof renderGhModal === "function" ? renderGhModal() : ""}
   `;
 }
 
@@ -78,6 +134,8 @@ function togglePoolView() { S.view = "setup"; render(); }
 function renderPoolExplorer() { setup(); }
 function renderPoolRows() { return ""; }
 function updatePoolTable() {}
+function doImport() {}
+function resetPool() {}
 
 function resetToSetup() {
   if (M && M.tm) clearInterval(M.tm);
@@ -117,7 +175,7 @@ function copyInviteUrl(onlyCode = false) {
   ta.select();
   try { document.execCommand("copy"); } catch (e) {}
   document.body.removeChild(ta);
-  S.onlineMsg = `<p class="ok-msg">✅ ${onlyCode ? "5 Haneli Oda Kodu" : "Canlı Oda Davet Linki"} kopyalandı! Arkadaşına gönder, tıkladığı anda odana bağlanacak.</p>`;
+  S.onlineMsg = `<p class="ok-msg">${onlyCode ? "5 Haneli Oda Kodu" : "Canlı Oda Davet Linki"} kopyalandı.</p>`;
   render();
 }
 
@@ -141,38 +199,31 @@ function importFriendCode() { joinOnlineRoom(); }
 
 function renderOnlineModal() {
   if (!S.onlineModal) return "";
-  const inviteUrl = getRoomInviteUrl();
   return `
     <div class="modal-backdrop" onclick="toggleOnlineModal()">
       <div class="modal-card" onclick="event.stopPropagation()">
         <div class="panel-head">
-          <h2>🌐 İki Bilgisayar Karşılıklı Canlı Online (WebRTC P2P)</h2>
-          <button class="sm" onclick="toggleOnlineModal()">✕ Kapat</button>
+          <h2>İki Bilgisayar Karşılıklı Canlı Online Oda</h2>
+          <button class="sm" onclick="toggleOnlineModal()">Kapat</button>
         </div>
 
-        <p class="muted" style="margin:0 0 12px;font-size:.87rem">
-          GitHub Pages üzerinde veya farklı internet bağlantılarında iki bilgisayar doğrudan birbirine bağlanır. Sırayla canlı oyuncu seçer, İlk 11 + 3 Yedek dizilişini yapar ve 90 dakikalık maçı aynı anda canlı izlersiniz!
+        <p class="muted" style="margin:0 0 12px;font-size:.85rem">
+          İki farklı bilgisayardan doğrudan oda koduyla bağlanarak sırayla oyuncu seçebilir, draft bitiminde kendi takım isminizi ve logonuzu belirleyebilir, İlk 11 + 3 Yedek dizilişini yapabilir ve 90 dakikalık maçı aynı anda izleyebilirsiniz.
         </p>
-
-        <div style="margin-bottom:14px">
-          <label style="font-weight:600;font-size:.86rem">Takım Adın:
-            <input value="${S.teamName}" oninput="S.teamName=this.value||'Senin Takımın'" style="width:220px;margin-left:8px">
-          </label>
-        </div>
 
         <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">
           <div style="background:var(--raised);padding:14px;border-radius:10px;border:1px solid var(--border)">
-            <h3 style="color:var(--pri);margin-bottom:6px">1. Bilgisayar: Oda Kur (Host)</h3>
-            <p class="muted" style="font-size:.82rem;margin:0 0 10px">Odayı sen kur, oluşan 5 haneli Oda Kodunu veya Davet Linkini arkadaşına gönder.</p>
-            <button class="pri" onclick="createOnlineRoom()" style="width:100%">🏠 Canlı Online Oda Kur</button>
+            <h3 style="color:var(--pri-bright);margin-bottom:6px">1. Bilgisayar: Oda Kur (Host)</h3>
+            <p class="muted" style="font-size:.8rem;margin:0 0 10px">Odayı kur ve oluşan 5 haneli Oda Kodunu arkadaşına gönder.</p>
+            <button class="pri" onclick="createOnlineRoom()" style="width:100%">Canlı Online Oda Kur</button>
 
             ${NET.role === "host" && NET.roomCode ? `
               <div style="margin-top:12px;text-align:center">
-                <div class="muted" style="font-size:.78rem;margin-bottom:4px">Oda Kodun:</div>
+                <div class="muted" style="font-size:.76rem;margin-bottom:4px">Oda Kodun:</div>
                 <div class="room-code-box">${NET.roomCode}</div>
                 <div class="row" style="margin-top:10px;justify-content:center">
-                  <button class="sm pri" onclick="copyInviteUrl(false)">📋 Davet Linkini Kopyala</button>
-                  <button class="sm" onclick="copyInviteUrl(true)">🔑 Kodu Kopyala</button>
+                  <button class="sm pri" onclick="copyInviteUrl(false)">Linki Kopyala</button>
+                  <button class="sm" onclick="copyInviteUrl(true)">Kodu Kopyala</button>
                 </div>
               </div>
             ` : ""}
@@ -180,27 +231,27 @@ function renderOnlineModal() {
 
           <div style="background:var(--raised);padding:14px;border-radius:10px;border:1px solid var(--border)">
             <h3 style="color:var(--t-elite);margin-bottom:6px">2. Bilgisayar: Odaya Katıl</h3>
-            <p class="muted" style="font-size:.82rem;margin:0 0 10px">Arkadaşının gönderdiği 5 haneli Oda Kodunu aşağıya yazıp bağlan.</p>
+            <p class="muted" style="font-size:.8rem;margin:0 0 10px">Arkadaşının gönderdiği 5 haneli Oda Kodunu girip bağlan.</p>
             <div class="row">
               <input id="friend-code-inp" placeholder="Örn: 48291" value="${NET.role === 'guest' ? NET.roomCode : ''}" style="flex:1;font-family:var(--mono);font-size:1rem;text-align:center">
-              <button class="gold" onclick="joinOnlineRoom()">🚀 Bağlan</button>
+              <button class="gold" onclick="joinOnlineRoom()">Bağlan</button>
             </div>
           </div>
         </div>
 
         ${NET.connected ? `
-          <div style="margin-top:14px;padding:12px;background:oklch(0.89 0.2 124 / 0.12);border:1px solid var(--pri);border-radius:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div style="margin-top:14px;padding:12px;background:rgba(22,101,52,0.22);border:1px solid var(--pri-bright);border-radius:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
             <div>
-              <b>🟢 ${NET.peerName} ile Canlı Bağlantı Aktif!</b>
-              <div class="muted" style="font-size:.82rem">${NET.role === "host" ? "Oda kurucu sensin. Draftı başlattığında iki ekranda birden açılacak." : "Oda kurucunun draftı başlatması bekleniyor..."}</div>
+              <b>${NET.peerName} ile Canlı Bağlantı Aktif</b>
+              <div class="muted" style="font-size:.8rem">${NET.role === "host" ? "Oda kurucu sensin. Lig ve takım seçimine geçip draftı başlatabilirsin." : "Oda kurucunun draftı başlatması bekleniyor..."}</div>
             </div>
-            ${NET.role === "host" ? `<button class="pri" onclick="startDraft()">⚽ Karşılıklı Online Draftı Başlat!</button>` : ""}
+            ${NET.role === "host" ? `<button class="pri" onclick="S.onlineModal=false;S.view='clubs';render()">Lig & Takım Seçimine Geç →</button>` : ""}
           </div>
         ` : ""}
 
         ${NET.role ? `
           <div style="margin-top:10px;text-align:right">
-            <button class="sm warn-btn" onclick="disconnectOnlineRoom()">🔌 Online Bağlantıyı Kes</button>
+            <button class="sm warn-btn" onclick="disconnectOnlineRoom()">Bağlantıyı Kes</button>
           </div>
         ` : ""}
 
@@ -210,7 +261,7 @@ function renderOnlineModal() {
   `;
 }
 
-// 6. KURULUM EKRANI
+// 6. KURULUM EKRANI (1. Ekran: Mod & Turnuva Ayarları -> 2. Ekran: Lig & Takım Seçimi)
 function toggleLeague(lg) {
   if (S.leagues.has(lg)) {
     if (S.leagues.size > 1) S.leagues.delete(lg);
@@ -238,23 +289,27 @@ function selectAllLeagues() {
   render();
 }
 
-function setup() {
-  const m = currentMode();
-  const cl = m.clubs !== "none";
-  const activeClubs = CLUBS.filter(c => S.leagues.has(CLUB_TO_LEAGUE[c] || "Diğer") || !CLUB_TO_LEAGUE[c]);
-  const activePlayerCount = P.filter(p => S.leagues.has(p.lg)).length;
+function selectTop5Leagues() {
+  S.leagues = new Set(["Premier Lig", "La Liga", "Serie A", "Bundesliga", "Ligue 1"]);
+  for (const c of [...S.clubs]) {
+    if (!S.leagues.has(CLUB_TO_LEAGUE[c])) S.clubs.delete(c);
+  }
+  S.err = "";
+  render();
+}
 
+function proceedFromSetup() {
+  S.err = "";
+  S.view = "clubs";
+  render();
+}
+
+function setup() {
   app.innerHTML = hdr() + renderOnlineModal() + `
     <section class="hero">
-      <span class="eyebrow">5 Büyük Lig · 2026-27 · 2 Bilgisayar Canlı Online P2P</span>
-      <h1>Futbol Draft · Online, Çark, 11+3 Yedek & Turnuva</h1>
-      <p>İster <b>Online Oda Kurarak</b> farklı bilgisayardaki arkadaşınla karşılıklı canlı oyna, ister CPU rakiplerle Yarı Final ve Final turnuvasına katıl! <b>11 Asil + 3 Yedek</b> kadronu kur, İlk 11'ini diz ve şans faktörü, kırmızı kart, uzatma ve penaltılarla dolu 90 dakikayı yaşa.</p>
-      <div class="hero-stats">
-        <div class="stat-pill"><b>🌐 2 PC Canlı</b> WebRTC P2P Online Draft</div>
-        <div class="stat-pill"><b>11 + 3</b> İlk 11 & Yedek Kulübesi</div>
-        <div class="stat-pill"><b>🎡 Çark</b> Takım Çarkı Modu</div>
-        <div class="stat-pill"><b>🟥 & Penaltı</b> Uzatma, Penaltı & Kırmızı Kart</div>
-      </div>
+      <span class="eyebrow">Futbol Draft · 9 Lig · 46 Kulüp</span>
+      <h1>Kadro Draftı & Turnuva Simülatörü</h1>
+      <p>Oyun modunu ve turnuva ayarlarını belirle. Devam ettiğinde lig ve takım seçimi ekranı açılır; draft bittiğinde ise her oyuncu kendi takım ismini ve logosunu oluşturur.</p>
     </section>
 
     <div class="grid modes">
@@ -262,7 +317,7 @@ function setup() {
         <button class="mode" aria-pressed="${x.id === S.mode}" onclick="S.mode='${x.id}';S.err='';render()">
           <div>
             <small>${x.tag}</small>
-            <h3>${x.id === 'wheel' ? '🎡 ' : ''}${x.name}</h3>
+            <h3>${x.name}</h3>
             <p>${x.d}</p>
           </div>
         </button>
@@ -271,15 +326,70 @@ function setup() {
 
     <div class="panel">
       <div class="panel-head">
+        <h2>Oyun & Turnuva Ayarları</h2>
+      </div>
+      <div class="row" style="gap:14px">
+        <label>Turnuva Boyutu:
+          <select onchange="S.opp=+this.value;if(S.humanCount>S.opp+1)S.humanCount=S.opp+1;render()">
+            <option value="1" ${S.opp === 1 ? "selected" : ""}>2 Takım (Doğrudan Final)</option>
+            <option value="2" ${S.opp === 2 ? "selected" : ""}>3 Takım (Yarı Final + Final)</option>
+            <option value="3" ${S.opp === 3 ? "selected" : ""}>4 Takım (Yarı Final & Final Turnuvası)</option>
+          </select>
+        </label>
+        <label>Katılımcı:
+          <select onchange="S.humanCount=+this.value;render()">
+            <option value="1" ${S.humanCount === 1 ? "selected" : ""}>Tek Oyuncu (vs CPU) / 2 PC Online</option>
+            ${Array.from({ length: S.opp }, (_, idx) => idx + 2).map(cnt => `
+              <option value="${cnt}" ${S.humanCount === cnt ? "selected" : ""}>Aynı Cihazda ${cnt} Oyuncu</option>
+            `).join("")}
+          </select>
+        </label>
+        <label>Draft Sırası:
+          <select onchange="S.format=this.value">
+            <option value="snake" ${S.format === "snake" ? "selected" : ""}>Yılan (Her tur döner)</option>
+            <option value="linear" ${S.format === "linear" ? "selected" : ""}>Doğrusal (Sabit sıra)</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="pri" onclick="proceedFromSetup()">
+          Devam Et: Lig & Takım Seç →
+        </button>
+        <button onclick="quickDraftAndSim()">Hızlı Kadro Kur & Takım Kimliğine Geç</button>
+        <button onclick="toggleOnlineModal()">Online Oda Kur / Katıl</button>
+      </div>
+      ${S.err ? `<p class="err">${S.err}</p>` : ""}
+    </div>
+  `;
+}
+
+// 2. Ekran: Lig Seçici ve Takım Seçimi
+function renderClubSelectScreen() {
+  const m = currentMode();
+  const showClubChips = m.clubs !== "none";
+  const activeClubs = CLUBS.filter(c => S.leagues.has(CLUB_TO_LEAGUE[c] || "Diğer Takımlar") || !CLUB_TO_LEAGUE[c]);
+  const activePlayerCount = P.filter(p => S.leagues.has(p.lg)).length;
+  const selectedCount = S.clubs.size;
+
+  app.innerHTML = hdr() + renderOnlineModal() + `
+    <div class="panel" style="margin-top:0">
+      <div class="panel-head">
         <div>
-          <h2>🌍 Lig Seçici (Aktif Havuz: ${activePlayerCount} Oyuncu)</h2>
-          <p class="muted" style="margin:2px 0 0;font-size:.84rem">Drafta ve Çarka dahil etmek istediğin ligleri seç.</p>
+          <span class="eyebrow">Adım 2 / 2 · Lig & Kulüp Seçimi</span>
+          <h2>Ligleri (${S.leagues.size} Lig · ${activePlayerCount} Oyuncu) ve Takımları Belirle</h2>
         </div>
         <div class="row">
-          <button class="sm ${S.leagues.size === LEAGUES.length ? 'pri' : ''}" onclick="selectAllLeagues()">Tüm 5 Büyük Ligi Seç</button>
+          <button onclick="S.view='setup';S.err='';render()">← Mod & Ayarlara Dön</button>
+          <button class="pri" onclick="startDraft()">Drafta Başla →</button>
         </div>
       </div>
-      <div class="league-grid">
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="sm ${S.leagues.size === LEAGUES.length ? 'pri' : ''}" onclick="selectAllLeagues()">Tüm Ligler (9)</button>
+        <button class="sm" onclick="selectTop5Leagues()">5 Büyük Lig</button>
+      </div>
+
+      <div class="league-grid" style="margin-bottom:18px">
         ${LEAGUES_META.map(lg => {
           const lgPlayers = P.filter(p => p.lg === lg.id);
           const lgClubs = [...new Set(lgPlayers.map(p => p.c))];
@@ -287,83 +397,62 @@ function setup() {
           return `
             <div class="league-card" aria-pressed="${isSel}" onclick="toggleLeague('${lg.id}')">
               <div class="lg-title">
-                <span>${lg.flag} ${lg.name}</span>
-                <span style="font-size:.83rem;color:${isSel ? 'var(--pri)' : 'var(--muted)'}">${isSel ? "✓ Seçili" : "Kapalı"}</span>
+                <span>${lg.name}</span>
+                <span style="font-size:.75rem;color:${isSel ? 'var(--pri-bright)' : 'var(--muted)'}">${isSel ? "Seçili" : "Kapalı"}</span>
               </div>
-              <div class="lg-meta">${lgClubs.length} Kulüp · ${lgPlayers.length} Oyuncu</div>
+              <div class="lg-meta">${lg.country} · ${lgClubs.length} Kulüp · ${lgPlayers.length} Oyuncu</div>
               <div style="margin-top:4px">
-                <button class="sm" onclick="event.stopPropagation();selectOnlyLeague('${lg.id}')">Sadece ${lg.name}</button>
+                <button class="sm" onclick="event.stopPropagation();selectOnlyLeague('${lg.id}')">Sadece Bu Lig</button>
               </div>
             </div>
           `;
         }).join("")}
       </div>
-    </div>
 
-    ${cl ? `
-      <div class="panel">
-        <div class="panel-head">
-          <h2>🛡️ Kulüp Seçimi ${m.clubs === "required" ? "(En az 2 kulüp seç)" : "(Seçilmezse seçili liglerdeki tüm kulüpler dahil)"}</h2>
-          <div class="row">
-            <button class="sm" onclick="selectEuropeanGiants()">Avrupa Devleri (12 Kulüp)</button>
-            <button class="sm" onclick="selectBigSix()">Premier Lig Big 6</button>
-            <button class="sm" onclick="S.clubs.clear();render()">Temizle</button>
+      ${S.err ? `<p class="err">${S.err}</p>` : ""}
+
+      ${showClubChips ? `
+        <div style="border-top:1px solid var(--border);padding-top:14px">
+          <div class="panel-head">
+            <div>
+              <h2>Takım Seçimi</h2>
+              <p class="muted" style="margin:2px 0 0;font-size:.82rem">
+                ${m.clubs === "required"
+                  ? "Kulüp Draftı modundasın: En az 2 takım seçmelisin."
+                  : `Seçili takım: <b>${selectedCount || "Tümü (" + activeClubs.length + ")"}</b>. Hiç takım işaretlemezsen seçili liglerdeki tüm takımlar (${activeClubs.length} kulüp) dahil edilir.`}
+              </p>
+            </div>
+            <div class="row">
+              <button class="sm" onclick="selectAllActiveClubs()">Tümünü İşaretle (${activeClubs.length})</button>
+              <button class="sm" onclick="selectEuropeanGiants()">Avrupa Devleri</button>
+              <button class="sm" onclick="selectBigSix()">Premier Lig Big 6</button>
+              <button class="sm" onclick="selectSuperLigFour()">Süper Lig 4 Büyükler</button>
+              <button class="sm" onclick="S.clubs.clear();render()">Seçimi Temizle</button>
+            </div>
           </div>
-        </div>
-        <div class="chips">
-          ${activeClubs.map(c => {
-            const esc = c.replace(/'/g, "\\'");
-            return `<button class="chip" aria-pressed="${S.clubs.has(c)}" onclick="toggleClub('${esc}')">${clubLogo(c, 18)} ${c}</button>`;
+
+          ${[...S.leagues].map(lgName => {
+            const clubsOfLg = activeClubs.filter(c => (CLUB_TO_LEAGUE[c] || "Diğer Takımlar") === lgName);
+            if (!clubsOfLg.length) return "";
+            return `
+              <div style="margin-top:14px">
+                <h3 style="font-size:.92rem;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">${lgName} (${clubsOfLg.length})</h3>
+                <div class="chips">
+                  ${clubsOfLg.map(c => {
+                    const esc = c.replace(/'/g, "\\'");
+                    return `<button class="chip" aria-pressed="${S.clubs.has(c)}" onclick="toggleClub('${esc}')">${clubLogo(c, 22)} <span>${c}</span></button>`;
+                  }).join("")}
+                </div>
+              </div>
+            `;
           }).join("")}
         </div>
-      </div>
-    ` : ""}
+      ` : ""}
 
-    <div class="panel">
-      <h2>⚙️ Draft, Yedek & Online Turnuva Ayarları</h2>
-      <div class="row" style="gap:14px">
-        <label>Takım Adın:
-          <input value="${S.teamName}" oninput="S.teamName=this.value||'Senin Takımın'" style="width:165px">
-        </label>
-        <label>Toplam Takım (Turnuva):
-          <select onchange="S.opp=+this.value;if(S.humanCount>S.opp+1)S.humanCount=S.opp+1;render()">
-            <option value="1" ${S.opp === 1 ? "selected" : ""}>2 Takım (1v1 Doğrudan Final)</option>
-            <option value="2" ${S.opp === 2 ? "selected" : ""}>3 Takım (Yarı Final + Final)</option>
-            <option value="3" ${S.opp === 3 ? "selected" : ""}>4 Takım (Yarı Final & Final Turnuvası)</option>
-          </select>
-        </label>
-        <label>Oyun Türü:
-          <select onchange="S.humanCount=+this.value;render()">
-            <option value="1" ${S.humanCount === 1 ? "selected" : ""}>Tek Bilgisayar (Sen vs CPU) veya 2 PC Online</option>
-            ${Array.from({ length: S.opp }, (_, idx) => idx + 2).map(cnt => `
-              <option value="${cnt}" ${S.humanCount === cnt ? "selected" : ""}>Aynı Bilgisayarda ${cnt} Arkadaş Sıralı</option>
-            `).join("")}
-          </select>
-        </label>
-        <label>Draft Sırası:
-          <select onchange="S.format=this.value">
-            <option value="snake" ${S.format === "snake" ? "selected" : ""}>Yılan (Snake - Her tur döner)</option>
-            <option value="linear" ${S.format === "linear" ? "selected" : ""}>Doğrusal (Sabit sıra)</option>
-          </select>
-        </label>
+      <div class="row" style="margin-top:20px;justify-content:space-between;border-top:1px solid var(--border);padding-top:14px">
+        <button onclick="S.view='setup';S.err='';render()">← Geri</button>
+        <button class="pri" onclick="startDraft()">Drafta Başla (11 Asil + 3 Yedek)</button>
       </div>
-      <div class="row" style="margin-top:14px">
-        <button class="pri" onclick="startDraft()">⚽ ${NET.connected ? "Canlı Online Draftı Başlat!" : "Drafta Başla (11 Asil + 3 Yedek)"}</button>
-        <button class="gold" onclick="toggleOnlineModal()">🌐 İki Bilgisayar Online Oda Kur / Katıl</button>
-        <button onclick="quickDraftAndSim()">⚡ Hızlı Kadro Kur & Dizilişe Geç</button>
-      </div>
-      ${S.err ? `<p class="err">${S.err}</p>` : ""}
-    </div>
-
-    <div class="panel">
-      <h2>📥 Özel Oyuncu Listesi Yükle</h2>
-      <p class="muted" style="margin:0 0 10px">Kulüp bloklu metin veya CSV yapıştırabilirsiniz.</p>
-      <textarea id="imp" rows="3" placeholder="Real Madrid&#10;Thibaut Courtois 87 GK&#10;Jude Bellingham 90 OS&#10;Kylian Mbappe 91 FV"></textarea>
-      <div class="row" style="margin-top:10px">
-        <button onclick="doImport()">Listeyi Yükle</button>
-        <button onclick="resetPool()">Varsayılan 5 Büyük Lig Havuzu (${DEFAULT_ROWS.length} Oyuncu)</button>
-      </div>
-      ${S.impMsg || ""}
     </div>
   `;
 }
@@ -374,47 +463,38 @@ function toggleClub(c) {
   render();
 }
 
+function selectAllActiveClubs() {
+  const activeClubs = CLUBS.filter(c => S.leagues.has(CLUB_TO_LEAGUE[c] || "Diğer Takımlar"));
+  S.clubs = new Set(activeClubs);
+  render();
+}
+
 function selectBigSix() {
   S.leagues.add("Premier Lig");
   S.clubs = new Set(["Manchester City", "Arsenal", "Liverpool", "Chelsea", "Manchester United", "Tottenham"]);
   render();
 }
 
+function selectSuperLigFour() {
+  S.leagues.add("Trendyol Süper Lig");
+  S.clubs = new Set(["Galatasaray", "Fenerbahce", "Besiktas", "Trabzonspor"]);
+  render();
+}
+
 function selectEuropeanGiants() {
-  S.leagues = new Set(["Premier Lig", "La Liga", "Serie A", "Bundesliga", "Ligue 1"]);
+  S.leagues = new Set(LEAGUES);
   S.clubs = new Set([
     "Manchester City", "Arsenal", "Liverpool", "Chelsea",
     "Real Madrid", "Barcelona", "Atletico Madrid",
     "Inter", "Juventus", "Milan",
-    "Bayern Munchen", "PSG"
+    "Bayern Munchen", "Borussia Dortmund", "PSG",
+    "Porto", "Benfica", "Sporting", "Ajax",
+    "Galatasaray", "Fenerbahce", "RB Salzburg"
   ]);
   render();
 }
 
-function doImport() {
-  const val = ($("#imp") && $("#imp").value) || "";
-  const r = parseList(val);
-  const ok = r.rows.filter(x => x.rating != null);
-  if (!ok.length) {
-    S.impMsg = '<p class="err">Geçerli oyuncu bulunamadı.</p>';
-    return render();
-  }
-  setPool(ok);
-  S.leagues = new Set(LEAGUES);
-  S.clubs.clear();
-  S.impMsg = `<p class="ok-msg">${ok.length} oyuncu başarıyla yüklendi.</p>`;
-  render();
-}
-
-function resetPool() {
-  setPool(DEFAULT_ROWS);
-  S.leagues = new Set(LEAGUES);
-  S.clubs.clear();
-  S.impMsg = `<p class="ok-msg">Varsayılan 5 Büyük Lig 2026-27 (${DEFAULT_ROWS.length} oyuncu) havuzu geri yüklendi.</p>`;
-  render();
-}
-
-// 7. DRAFT MOTORU
+// 7. DRAFT MOTORU VE ÇEŞİTLİ CPU SEÇİMLERİ
 function posCountsOf(team) {
   const counts = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
   team.picks.forEach(p => {
@@ -455,7 +535,7 @@ function canTeamPickPos(team, pos, pool, taken) {
 
 function minP() {
   if (!G || !G.pool.length) return { r: 66 };
-  return G.pool.reduce((a, b) => b.r < a.r ? b : a, G.pool[0]);
+  return G.pool.reduce((a, b) => cost(b) < cost(a) ? b : a, G.pool[0]);
 }
 
 function calcMinReserveAfterPick(t, candidateP) {
@@ -514,7 +594,7 @@ function checkBudgetStatus(t, p) {
   if (price > remBudget) {
     return {
       ok: false,
-      reason: `🚫 Satın Alma İptal Edildi! ${p.n} (${price} M€) için kalan bütçen (${remBudget} M€) yetersiz.`
+      reason: `Satın Alma İptal Edildi: ${p.n} (${price} M€) için kalan bütçen (${remBudget} M€) yetersiz.`
     };
   }
 
@@ -523,7 +603,7 @@ function checkBudgetStatus(t, p) {
     if (remBudget - price < minReserve) {
       return {
         ok: false,
-        reason: `⚠️ Bütçe Uyarısı — Alım İptal Edildi! ${p.n} (${price} M€) alınırsa kalan ${remSlots} oyuncu için sadece ${remBudget - price} M€ kalır; ancak kalan boş mevkilerdeki en ucuz oyuncuları tamamlayabilmek için en az ${minReserve} M€ gerekiyor!`
+        reason: `Bütçe Uyarısı — Alım İptal Edildi: ${p.n} (${price} M€) alınırsa kalan ${remSlots} oyuncu için ${remBudget - price} M€ kalır; ancak kalan boş mevkilerdeki en ucuz oyuncuları tamamlayabilmek için en az ${minReserve} M€ gerekiyor.`
       };
     }
   }
@@ -563,7 +643,7 @@ function buildDraftState() {
   }
   const n = S.opp + 1;
   if (pool.length < n * ROUNDS) {
-    S.err = `Seçili havuzda 14 kişilik (11 Asil + 3 Yedek) kadrolar için yeterli oyuncu yok (${pool.length} mevcut, ${n} takım için en az ${n * ROUNDS} oyuncu gerekli). Lütfen daha fazla kulüp veya lig seçin.`;
+    S.err = `Seçili havuzda 14 kişilik (11 Asil + 3 Yedek) kadrolar için yeterli oyuncu yok (${pool.length} mevcut, en az ${n * ROUNDS} gerekli). Daha fazla kulüp veya lig seçin.`;
     return null;
   }
 
@@ -582,30 +662,43 @@ function buildDraftState() {
   if (activeBudget) {
     const cheapestPool = pool.map(cost).sort((a, b) => a - b);
     const min14Cost = cheapestPool.slice(0, n * ROUNDS).reduce((s, c) => s + c, 0) / n;
-    if (min14Cost + 35 > activeBudget) {
-      activeBudget = Math.ceil((min14Cost + 55) / 10) * 10;
+    if (min14Cost + 40 > activeBudget) {
+      activeBudget = Math.ceil((min14Cost + 60) / 10) * 10;
     }
   }
 
-  const cpuNames = ["Madrid & Londra XI", "Milano & Münih XI", "Paris & Kuzey XI"];
+  const cpuNames = ["Avrupa Elit XI", "Kuzey Yıldızları XI", "Akdeniz & Boğaz XI"];
+  const cpuClubs = ["Real Madrid", "Bayern Munchen", "Inter"];
+  const defaultPalette = [
+    { c1: "#166534", c2: "#eab308", shape: "shield" },
+    { c1: "#1e3a8a", c2: "#38bdf8", shape: "circle" },
+    { c1: "#7f1d1d", c2: "#fbbf24", shape: "stripes" },
+    { c1: "#3b0764", c2: "#f472b6", shape: "diamond" }
+  ];
+
   const effectiveHumans = NET.connected ? 2 : S.humanCount;
   const teams = [];
   for (let i = 0; i < n; i++) {
     const isHuman = i < effectiveHumans;
     let tName;
     if (NET.connected) {
-      if (i === 0) tName = NET.role === "host" ? (S.teamName || "1. Oyuncu (Host)") : NET.peerName;
-      else if (i === 1) tName = NET.role === "guest" ? (S.teamName || "2. Oyuncu (Misafir)") : NET.peerName;
+      if (i === 0) tName = "1. Oyuncu";
+      else if (i === 1) tName = "2. Oyuncu";
       else tName = cpuNames[i - 1] || ("CPU " + i);
     } else {
-      tName = i === 0 ? (S.teamName || "1. Oyuncu") : (isHuman ? `${i + 1}. Oyuncu (Arkadaş)` : `${cpuNames[i - 1] || ("CPU " + i)}`);
+      tName = isHuman ? `${i + 1}. Oyuncu` : `${cpuNames[i - 1] || ("CPU " + i)}`;
     }
 
     const isMeLocal = NET.connected ? (i === NET.myTeamIdx) : isHuman;
+    const pal = defaultPalette[i % defaultPalette.length];
     teams.push({
       name: tName,
       me: isMeLocal ? 1 : 0,
       isHuman,
+      identityDone: !isHuman,
+      customIdentity: isHuman
+        ? { type: "custom", shape: pal.shape, c1: pal.c1, c2: pal.c2, club: "Real Madrid" }
+        : { type: "club", shape: "shield", c1: pal.c1, c2: pal.c2, club: cpuClubs[(i - 1) % cpuClubs.length] },
       picks: [],
       starters: null,
       bench: null,
@@ -621,6 +714,7 @@ function buildDraftState() {
   }
 
   W = { spinning: false, angle: 0, selectedClub: null, offeredPlayers: [], jokers: 3 };
+  ID_EDIT = { teamIdx: NET.connected ? NET.myTeamIdx : 0, lgFilter: "" };
 
   return {
     m: { ...m, budget: activeBudget },
@@ -674,7 +768,7 @@ function quickDraftAndSim() {
   G = state;
   T = null;
   autoCompleteDraft(true);
-  S.view = "result";
+  S.view = "identity";
   render();
 }
 
@@ -699,8 +793,9 @@ function applyPickDirectly(id, isCpu = false) {
   if (G.k >= G.order.length) {
     G.teams.forEach(ensureTeamLineup);
     SWAP.teamIdx = NET.connected ? NET.myTeamIdx : 0;
+    ID_EDIT.teamIdx = NET.connected ? NET.myTeamIdx : 0;
     initTournament();
-    S.view = "result";
+    S.view = "identity";
     render();
   } else {
     render();
@@ -715,15 +810,14 @@ function pick(id, isCpu = false) {
   const p = P[id];
   if (!p || G.taken.has(id)) return;
 
-  // Online modda sıra kontrolü
   if (!isCpu && !isMyTurnNow()) {
-    G.budgetWarning = `⏳ Şu an sıra ${t.name} takımında! Arkadaşının seçim yapmasını bekle.`;
+    G.budgetWarning = `Şu an sıra ${t.name} takımında. Rakibinin seçim yapmasını bekle.`;
     return render();
   }
 
   if (!canTeamPickPos(t, p.pos, G.pool, G.taken)) {
     if (!isCpu) {
-      G.budgetWarning = `⚠️ Pozisyon Kuralı: İlk 11'de zorunlu mevkileri tamamlamak için şu an ${POS_LABEL[p.pos]} yerine eksik mevkilerden seçim yapmalısın!`;
+      G.budgetWarning = `Pozisyon Kuralı: İlk 11'de zorunlu mevkileri tamamlamak için şu an ${POS_LABEL[p.pos]} yerine eksik mevkilerden seçim yapmalısın.`;
       render();
     }
     return;
@@ -759,20 +853,40 @@ function chooseCpuPlayer(t) {
   if (!av.length) return null;
 
   if (G.m.cpu === "random" || G.m.id === "wheel") {
-    const topSlice = av.slice().sort((a, b) => b.r - a.r).slice(0, Math.min(18, av.length));
-    return topSlice[(Math.random() * topSlice.length) | 0];
+    return av[(Math.random() * av.length) | 0];
   }
 
+  const lgCounts = {};
+  const clubCounts = {};
+  t.picks.forEach(pk => {
+    lgCounts[pk.lg] = (lgCounts[pk.lg] || 0) + 1;
+    clubCounts[pk.c] = (clubCounts[pk.c] || 0) + 1;
+  });
+
+  let candidates = av;
   if (G.m.budget) {
     const remBudget = G.m.budget - t.spent;
     const remSlots = ROUNDS - t.picks.length;
-    const targetAvg = (remBudget / remSlots) * 1.35;
+    const targetAvg = (remBudget / remSlots) * 1.4;
     const balanced = av.filter(p => cost(p) <= targetAvg);
-    const poolToUse = balanced.length ? balanced : av;
-    return poolToUse.reduce((a, b) => b.r > a.r ? b : a, poolToUse[0]);
+    if (balanced.length) candidates = balanced;
   }
 
-  return av.reduce((a, b) => b.r > a.r ? b : a, av[0]);
+  const scored = candidates.map(p => {
+    const lgPen = (lgCounts[p.lg] || 0) * 1.6;
+    const clubPen = (clubCounts[p.c] || 0) * 2.5;
+    const noise = (Math.random() - 0.5) * 6.5;
+    return { p, score: p.r - lgPen - clubPen + noise };
+  }).sort((a, b) => b.score - a.score);
+
+  const poolSize = Math.min(12, scored.length);
+  const topCandidates = scored.slice(0, poolSize);
+  const weights = topCandidates.map((_, idx) => Math.pow(poolSize - idx, 1.3));
+  let rnd = Math.random() * weights.reduce((s, w) => s + w, 0);
+  for (let i = 0; i < topCandidates.length; i++) {
+    if ((rnd -= weights[i]) <= 0) return topCandidates[i].p;
+  }
+  return topCandidates[0].p;
 }
 
 let cpuTimer = null;
@@ -781,7 +895,6 @@ function cpuLoop() {
   if (!G || G.k >= G.order.length) return;
   const t = G.teams[G.order[G.k]];
   if (t.isHuman) return;
-  // Online modda CPU seçimlerini sadece Host hesaplar ve Misafire gönderir
   if (NET.connected && NET.role === "guest") return;
 
   cpuTimer = setTimeout(() => {
@@ -820,7 +933,7 @@ function pickRandomForMe() {
   const t = G.teams[G.order[G.k]];
   const av = G.pool.filter(p => canPickPlayer(t, p));
   if (!av.length) return;
-  const topPool = av.slice().sort((a, b) => b.r - a.r).slice(0, Math.min(12, av.length));
+  const topPool = av.slice().sort((a, b) => b.r - a.r).slice(0, Math.min(16, av.length));
   const chosen = topPool[(Math.random() * topPool.length) | 0];
   pick(chosen.id, false);
 }
@@ -828,7 +941,7 @@ function pickRandomForMe() {
 function autoCompleteDraft(silent = false) {
   if (!G) return;
   if (NET.connected && NET.role === "guest" && !silent) {
-    G.budgetWarning = "Online odada Otomatik Tamamlama işlemini yalnızca Oda Kurucu (Host) başlatabilir.";
+    G.budgetWarning = "Online odada Otomatik Tamamlama işlemini yalnızca Oda Kurucu başlatabilir.";
     return render();
   }
   if (cpuTimer) clearTimeout(cpuTimer);
@@ -846,6 +959,7 @@ function autoCompleteDraft(silent = false) {
   }
   G.teams.forEach(ensureTeamLineup);
   SWAP.teamIdx = NET.connected ? NET.myTeamIdx : 0;
+  ID_EDIT.teamIdx = NET.connected ? NET.myTeamIdx : 0;
   initTournament();
   if (NET.connected && NET.role === "host") {
     sendNetMsg({
@@ -853,7 +967,7 @@ function autoCompleteDraft(silent = false) {
       picksByTeam: G.teams.map(tm => tm.picks.map(p => p.id))
     });
   }
-  S.view = "result";
+  S.view = "identity";
   if (!silent) render();
 }
 
@@ -879,16 +993,16 @@ function drawWheelCanvas() {
   clubs.forEach((c, i) => {
     const a0 = W.angle + i * slice;
     const a1 = a0 + slice;
-    const cr = CLUB_CRESTS[c] || { c1: "#10b981", c2: "#064e3b", code: c.slice(0, 3).toUpperCase() };
+    const cr = CLUB_CRESTS[c] || { c1: "#166534", c2: "#0b2919", code: c.slice(0, 3).toUpperCase() };
 
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.arc(cx, cy, rad, a0, a1);
     ctx.closePath();
-    ctx.fillStyle = i % 2 === 0 ? cr.c1 : (cr.c2 === "#FFFFFF" ? "#1e293b" : cr.c2);
+    ctx.fillStyle = i % 2 === 0 ? cr.c1 : (cr.c2 === "#FFFFFF" ? "#122b1e" : cr.c2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.lineWidth = 1.1;
     ctx.stroke();
 
     ctx.save();
@@ -896,24 +1010,24 @@ function drawWheelCanvas() {
     ctx.rotate(a0 + slice / 2);
     ctx.textAlign = "right";
     ctx.fillStyle = (i % 2 === 0 && (cr.c1 === "#FFFFFF" || cr.c1 === "#FDE100" || cr.c1 === "#FFCD00")) ? "#111" : "#FFF";
-    ctx.font = "700 10px 'Barlow Condensed', sans-serif";
-    const label = clubs.length > 18 ? cr.code : c.slice(0, 13);
+    ctx.font = "700 9.5px 'Outfit', sans-serif";
+    const label = clubs.length > 18 ? cr.code : c.slice(0, 12);
     ctx.fillText(label, rad - 10, 3.5);
     ctx.restore();
   });
 
   ctx.beginPath();
-  ctx.arc(cx, cy, 24, 0, Math.PI * 2);
-  ctx.fillStyle = "#0f172a";
+  ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+  ctx.fillStyle = "#07120d";
   ctx.fill();
-  ctx.strokeStyle = "#a3e635";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#22c55e";
+  ctx.lineWidth = 2.5;
   ctx.stroke();
 
-  ctx.fillStyle = "#a3e635";
-  ctx.font = "800 11px 'Barlow Condensed', sans-serif";
+  ctx.fillStyle = "#22c55e";
+  ctx.font = "800 10px 'Outfit', sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("ÇARK", cx, cy + 4);
+  ctx.fillText("ÇARK", cx, cy + 3.5);
 }
 
 function spinClubWheel(useJoker = false) {
@@ -981,10 +1095,10 @@ function squadCard(t, i) {
   return `
     <div class="sq ${t.me ? "you" : ""}">
       <div class="sq-head">
-        <h3>${t.name} ${isTurn ? '<span style="color:var(--pri)">· SIRADA</span>' : ""}</h3>
+        <h3 class="club-cell">${renderTeamIdentityBadge(t, 20)} <span>${t.name}</span> ${isTurn ? '<span style="color:var(--pri-bright)">· SIRADA</span>' : ""}</h3>
         <span>
-          <b>${t.picks.length}/${ROUNDS} Oyuncu</b> (11+3)
-          ${G && G.m.budget ? ` · Kalan Bütçe: <b style="color:var(--pri)">${remB} M€</b>` : ""}
+          <b>${t.picks.length}/${ROUNDS}</b>
+          ${G && G.m.budget ? ` · Kalan: <b style="color:var(--pri-bright)">${remB} M€</b>` : ""}
         </span>
       </div>
       <div class="sq-quotas">
@@ -993,7 +1107,7 @@ function squadCard(t, i) {
             ${POS_SHORT[k]}: ${counts[k]}/${FORMATION_QUOTA[k]}+
           </span>
         `).join("")}
-        <span class="q-pill">Yedek Kapasitesi: 3</span>
+        <span class="q-pill">Yedek: 3</span>
       </div>
       <ol>
         ${t.picks.map((p, idx) => `
@@ -1002,13 +1116,13 @@ function squadCard(t, i) {
               ${posTag(p.pos)}
               ${clubLogo(p.c, 16)}
               <b>${p.n}</b>
-              <span class="muted" style="font-size:.78rem">${p.c}</span>
+              <span class="muted" style="font-size:.77rem">${p.c}</span>
             </span>
-            <span class="muted" style="font-size:.78rem">
-              ${G && G.m.budget ? `${cost(p)} M€` : (idx < 11 ? "Kadro" : "Yedek")}
+            <span class="muted" style="font-size:.77rem">
+              ${G && G.m.budget ? `${cost(p)} M€` : (idx < 11 ? "İlk 11" : "Yedek")}
             </span>
           </li>
-        `).join("") || '<li class="muted">Henüz oyuncu seçilmedi</li>'}
+        `).join("") || '<li class="muted">Henüz seçim yok</li>'}
       </ol>
     </div>
   `;
@@ -1028,7 +1142,7 @@ function listHtml() {
       p.n.toLowerCase().includes(q)
     )
     .sort((a, b) => a.n.localeCompare(b.n, "tr"))
-    .slice(0, 100);
+    .slice(0, 110);
 
   return l.map(p => {
     const okPos = canTeamPickPos(t, p.pos, G.pool, G.taken);
@@ -1041,16 +1155,16 @@ function listHtml() {
     let disabledAttr = "";
 
     if (!myTurn) {
-      btnLabel = "Rakibin Sırası";
+      btnLabel = "Bekleniyor";
       disabledAttr = "disabled";
     } else if (isWheelMode && !wheelAllowed) {
       btnLabel = "Çarktan Seçilir";
       disabledAttr = "disabled";
     } else if (!okPos) {
-      btnLabel = "Zorunlu Mevki Eksik";
+      btnLabel = "Zorunlu Mevki";
       btnClass = "warn-btn sm";
     } else if (G.m.budget && !bStatus.ok) {
-      btnLabel = "⚠️ Bütçe Uyarısı";
+      btnLabel = "Bütçe Uyarısı";
       btnClass = "warn-btn sm";
     }
 
@@ -1076,48 +1190,48 @@ function renderWheelSection(t) {
     <div class="wheel-box">
       <div class="wheel-stage">
         <div class="wheel-pointer"></div>
-        <canvas id="wheel-cv" width="240" height="240"></canvas>
+        <canvas id="wheel-cv" width="230" height="230"></canvas>
       </div>
       <div class="wheel-result-card">
         <div class="panel-head" style="margin-bottom:8px">
           <div>
-            <h2>🎡 Takım & Oyuncu Çarkı</h2>
-            <p class="muted" style="margin:2px 0 0;font-size:.84rem">
-              Çarkı çevir; gelen kulübün sana verdiği oyuncuyu kadrona kat! (Joker Hakkı: <b>${W.jokers}</b>)
+            <h2>Takım & Oyuncu Çarkı</h2>
+            <p class="muted" style="margin:2px 0 0;font-size:.82rem">
+              Çarkı çevirerek gelen kulübün oyuncusunu kadrona kat. (Kalan Tekrar Çevirme Hakkı: <b>${W.jokers}</b>)
             </p>
           </div>
           <div class="row">
             <button class="pri" ${!myTurn || W.spinning || W.selectedClub ? "disabled" : ""} onclick="spinClubWheel(false)">
-              🎡 ÇARKI ÇEVİR!
+              Çarkı Çevir
             </button>
             ${W.selectedClub && W.jokers > 0 && myTurn ? `
               <button class="sm" ${W.spinning ? "disabled" : ""} onclick="spinClubWheel(true)">
-                🔄 Joker Kullan & Tekrar Çevir (${W.jokers})
+                Tekrar Çevir (${W.jokers})
               </button>
             ` : ""}
           </div>
         </div>
 
         ${W.selectedClub ? `
-          <div style="background:var(--raised);padding:12px;border-radius:10px;border:1px solid var(--pri)">
+          <div style="background:var(--raised);padding:12px;border-radius:8px;border:1px solid var(--pri-bright)">
             <div class="row" style="justify-content:space-between;margin-bottom:8px">
-              <span class="club-cell" style="font-size:1.1rem;font-weight:700">
-                ${clubLogo(W.selectedClub, 26)} Çarktan Çıkan Kulüp: <span style="color:var(--pri)">${W.selectedClub}</span>
+              <span class="club-cell" style="font-size:1.05rem;font-weight:700">
+                ${clubLogo(W.selectedClub, 24)} Çıkan Kulüp: <span style="color:var(--pri-bright)">${W.selectedClub}</span>
               </span>
               <span class="lg-tag">${CLUB_TO_LEAGUE[W.selectedClub] || ""}</span>
             </div>
-            <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+            <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px">
               ${W.offeredPlayers.map((p, idx) => `
-                <div class="row" style="justify-content:space-between;background:var(--card);padding:8px 10px;border-radius:8px;border:1px solid var(--border)">
-                  <span>${posTag(p.pos)} <b>${p.n}</b> <small class="muted">(${idx === 0 ? "Ana Çark Oyuncusu" : "Alternatif"})</small></span>
-                  <button class="pri sm" ${myTurn ? "" : "disabled"} onclick="pick(${p.id})">Kadroya Al</button>
+                <div class="row" style="justify-content:space-between;background:var(--card);padding:8px 10px;border-radius:7px;border:1px solid var(--border)">
+                  <span>${posTag(p.pos)} <b>${p.n}</b> <small class="muted">(${idx === 0 ? "Ana" : "Alternatif"})</small></span>
+                  <button class="pri sm" ${myTurn ? "" : "disabled"} onclick="pick(${p.id})">Seç</button>
                 </div>
               `).join("")}
             </div>
           </div>
         ` : `
-          <div class="muted" style="padding:10px 0">
-            ${W.spinning ? "🎡 Çark dönüyor, kulüp belirleniyor..." : (myTurn ? "👉 Sıradaki oyuncunu çekmek için <b>'ÇARKI ÇEVİR!'</b> butonuna tıkla." : `⏳ <b>${t.name}</b> çarkı çeviriyor...`)}
+          <div class="muted" style="padding:8px 0">
+            ${W.spinning ? "Çark dönüyor..." : (myTurn ? "Sıradaki oyuncunu belirlemek için Çarkı Çevir butonuna tıkla." : `${t.name} çarkı çeviriyor...`)}
           </div>
         `}
       </div>
@@ -1137,16 +1251,16 @@ function renderDraft() {
   app.innerHTML = hdr() + renderOnlineModal() + `
     <div class="turn ${myTurn ? "me" : ""}">
       <div>
-        <b>${myTurn ? `🟢 Sıra Sende (${t.name}) — ${G.m.id === 'wheel' ? 'Çarkı Çevir!' : 'Oyuncu Seç'}` : `⏳ ${t.name} seçim yapıyor…`}</b>
-        <div class="muted" style="font-size:.85rem;margin-top:2px">
-          ${G.m.name} · Seçim ${G.k + 1} / ${G.order.length} (11 Asil + 3 Yedek = 14 Oyuncu)
-          ${G.m.budget ? ` · Kalan Bütçe: <b style="color:var(--pri)">${remB} M€</b> (Kalan en ucuz slotlar için min rezerv: ${minNextReserve} M€)` : ""}
+        <b>${myTurn ? `Sıra Sende (${t.name})` : `${t.name} seçim yapıyor…`}</b>
+        <div class="muted" style="font-size:.82rem;margin-top:2px">
+          ${G.m.name} · Seçim ${G.k + 1} / ${G.order.length}
+          ${G.m.budget ? ` · Kalan Bütçe: <b style="color:var(--pri-bright)">${remB} M€</b> (Kalan slotlar için min rezerv: ${minNextReserve} M€)` : ""}
         </div>
       </div>
       <div class="row">
-        <button class="sm" ${G.history.length ? "" : "disabled"} onclick="undoLastPick()">↩ Geri Al</button>
-        <button class="sm" ${myTurn && G.m.id !== 'wheel' ? "" : "disabled"} onclick="pickRandomForMe()">🎲 Rastgele Seç</button>
-        <button class="sm pri" ${NET.connected && NET.role === "guest" ? "disabled" : ""} onclick="autoCompleteDraft()">⚡ Otomatik Tamamla</button>
+        <button class="sm" ${G.history.length ? "" : "disabled"} onclick="undoLastPick()">Geri Al</button>
+        <button class="sm" ${myTurn && G.m.id !== 'wheel' ? "" : "disabled"} onclick="pickRandomForMe()">Rastgele Seç</button>
+        <button class="sm pri" ${NET.connected && NET.role === "guest" ? "disabled" : ""} onclick="autoCompleteDraft()">Otomatik Tamamla</button>
       </div>
     </div>
 
@@ -1157,19 +1271,19 @@ function renderDraft() {
     <div class="draft">
       <div>
         <div class="pos-tabs">
-          <button class="pos-tab" aria-pressed="${F.p === ''}" onclick="F.p='';renderDraft()">Tüm Mevkiler</button>
+          <button class="pos-tab" aria-pressed="${F.p === ''}" onclick="F.p='';renderDraft()">Tümü</button>
           ${POSITIONS.map(k => {
             const rem = Math.max(0, FORMATION_QUOTA[k] - counts[k]);
             return `
               <button class="pos-tab" aria-pressed="${F.p === k}" onclick="F.p='${k}';renderDraft()">
-                ${POS_LABEL[k]} (${POS_SHORT[k]} · İlk 11 Eksik: ${rem})
+                ${POS_LABEL[k]} (${POS_SHORT[k]} · Eksik: ${rem})
               </button>
             `;
           }).join("")}
         </div>
 
         <div class="row" style="margin-bottom:10px">
-          <input id="q" placeholder="Oyuncu ara..." value="${F.q}" oninput="F.q=this.value;$('#tb').innerHTML=listHtml()" style="flex:1;min-width:160px">
+          <input id="q" placeholder="Oyuncu ara..." value="${F.q}" oninput="F.q=this.value;$('#tb').innerHTML=listHtml()" style="flex:1;min-width:150px">
           ${activeLeagues.length > 1 ? `
             <select onchange="F.lg=this.value;F.c='';renderDraft()">
               <option value="">Tüm Ligler (${activeLeagues.length})</option>
@@ -1190,7 +1304,7 @@ function renderDraft() {
                 <th>Mevki</th>
                 <th>Lig</th>
                 <th>Kulüp</th>
-                ${G.m.budget ? '<th class="n">Bonservis Bedeli</th>' : ""}
+                ${G.m.budget ? '<th class="n">Piyasa Değeri</th>' : ""}
                 <th class="n">İşlem</th>
               </tr>
             </thead>
@@ -1215,7 +1329,203 @@ function renderDraft() {
   }
 }
 
-// 10. İLK 11 & 3 YEDEK KADRO DİZİLİŞİ YÖNETİMİ
+// 9.5 DRAFT BİTİMİ: TAKIM İSMİ VE LOGO / ARMA BELİRLEME EKRANI (Her İki Oyuncu İçin)
+function syncTeamIdentity(teamIdx) {
+  if (!NET.connected || !G || !G.teams[teamIdx]) return;
+  const tm = G.teams[teamIdx];
+  sendNetMsg({
+    type: "IDENTITY_SYNC",
+    teamIdx,
+    name: tm.name,
+    customIdentity: tm.customIdentity,
+    identityDone: tm.identityDone
+  });
+}
+
+function updateTeamIdentityName(teamIdx, newName) {
+  const tm = G.teams[teamIdx];
+  if (!tm) return;
+  tm.name = newName.trim() || `${teamIdx + 1}. Oyuncu`;
+  const previewName = $("#id-preview-name");
+  if (previewName) previewName.textContent = tm.name;
+  const previewBadge = $("#id-preview-badge");
+  if (previewBadge) previewBadge.innerHTML = renderTeamIdentityBadge(tm, 64);
+  syncTeamIdentity(teamIdx);
+}
+
+function setIdentityType(teamIdx, type) {
+  const tm = G.teams[teamIdx];
+  if (!tm) return;
+  tm.customIdentity.type = type;
+  syncTeamIdentity(teamIdx);
+  render();
+}
+
+function setIdentityShape(teamIdx, shapeId) {
+  const tm = G.teams[teamIdx];
+  if (!tm) return;
+  tm.customIdentity.type = "custom";
+  tm.customIdentity.shape = shapeId;
+  syncTeamIdentity(teamIdx);
+  render();
+}
+
+function setIdentityColor(teamIdx, which, val) {
+  const tm = G.teams[teamIdx];
+  if (!tm) return;
+  tm.customIdentity.type = "custom";
+  tm.customIdentity[which] = val;
+  syncTeamIdentity(teamIdx);
+  render();
+}
+
+function setIdentityClubLogo(teamIdx, clubName) {
+  const tm = G.teams[teamIdx];
+  if (!tm) return;
+  tm.customIdentity.type = "club";
+  tm.customIdentity.club = clubName;
+  syncTeamIdentity(teamIdx);
+  render();
+}
+
+function confirmTeamIdentity(teamIdx) {
+  const tm = G.teams[teamIdx];
+  if (!tm) return;
+  tm.identityDone = true;
+  syncTeamIdentity(teamIdx);
+
+  if (NET.connected) {
+    S.view = "result";
+    return render();
+  }
+
+  // Aynı cihazda birden fazla insan oyuncu varsa sıradaki insan oyuncunun takım kimliği ekranına geç
+  const nextHumanIdx = G.teams.findIndex((x, idx) => idx > teamIdx && x.isHuman && !x.identityDone);
+  if (nextHumanIdx >= 0) {
+    ID_EDIT.teamIdx = nextHumanIdx;
+    render();
+  } else {
+    S.view = "result";
+    render();
+  }
+}
+
+function renderIdentityScreen() {
+  const activeIdx = NET.connected ? NET.myTeamIdx : (ID_EDIT.teamIdx < G.teams.length ? ID_EDIT.teamIdx : 0);
+  const tm = G.teams[activeIdx];
+  const cid = tm.customIdentity;
+  const clubsToShow = CLUBS.filter(c => !ID_EDIT.lgFilter || CLUB_TO_LEAGUE[c] === ID_EDIT.lgFilter);
+
+  app.innerHTML = hdr() + renderOnlineModal() + `
+    <section class="hero">
+      <span class="eyebrow">Draft Tamamlandı · Takım Kimliği & Logo</span>
+      <h1>Takımının İsmini ve Logosunu Oluştur</h1>
+      <p>Kadro seçimleri tamamlandı. Sahaya çıkmadan önce takımının adını belirle; ister renk ve arma şekli seçerek kendi özel kulüp armanı tasarla, ister 46 gerçek kulüp logosundan birini seç.</p>
+    </section>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="row">
+          <h2>Takım Kimliği Düzenleyici</h2>
+          ${!NET.connected ? G.teams.map((tItem, idx) => `
+            <button class="sm ${activeIdx === idx ? 'pri' : ''}" onclick="ID_EDIT.teamIdx=${idx};render()">
+              ${renderTeamIdentityBadge(tItem, 16)} ${tItem.name}
+            </button>
+          `).join("") : `
+            <span class="stat-pill">
+              1. Oyuncu: <b>${G.teams[0].name}</b> · 2. Oyuncu: <b>${G.teams[1] ? G.teams[1].name : ''}</b>
+            </span>
+          `}
+        </div>
+        <button class="pri" onclick="confirmTeamIdentity(${activeIdx})">
+          Kaydet & Kadro Dizilişine Geç →
+        </button>
+      </div>
+
+      <div class="lineup-editor" style="align-items:start">
+        <div style="background:var(--raised);padding:18px;border-radius:var(--r);border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+            <div id="id-preview-badge">${renderTeamIdentityBadge(tm, 64)}</div>
+            <div style="flex:1">
+              <div class="muted" style="font-size:.76rem;text-transform:uppercase;letter-spacing:.06em">Takım Adı</div>
+              <input value="${tm.name}" oninput="updateTeamIdentityName(${activeIdx}, this.value)" placeholder="Takım adını yaz..." style="width:100%;font-size:1.15rem;font-weight:700;margin-top:4px">
+            </div>
+          </div>
+
+          <div class="pos-tabs" style="margin-bottom:14px">
+            <button class="pos-tab" aria-pressed="${cid.type === 'custom'}" onclick="setIdentityType(${activeIdx}, 'custom')">
+              Özel Arma & Renk Tasarla
+            </button>
+            <button class="pos-tab" aria-pressed="${cid.type === 'club'}" onclick="setIdentityType(${activeIdx}, 'club')">
+              Gerçek Kulüp Logosu Seç (${CLUBS.length})
+            </button>
+          </div>
+
+          ${cid.type === "custom" ? `
+            <div>
+              <label style="display:block;font-weight:600;font-size:.84rem;margin-bottom:8px">1. Arma Şekli Seç:</label>
+              <div class="row" style="margin-bottom:16px">
+                ${CUSTOM_SHAPES.map(sh => `
+                  <button class="sm ${cid.shape === sh.id ? 'pri' : ''}" onclick="setIdentityShape(${activeIdx}, '${sh.id}')">
+                    ${sh.name}
+                  </button>
+                `).join("")}
+              </div>
+
+              <label style="display:block;font-weight:600;font-size:.84rem;margin-bottom:8px">2. Kulüp Renklerini Seç:</label>
+              <div class="row" style="gap:20px">
+                <label class="row">
+                  <span>Ana Renk:</span>
+                  <input type="color" value="${cid.c1}" oninput="setIdentityColor(${activeIdx}, 'c1', this.value)" style="width:46px;height:36px;padding:2px;cursor:pointer">
+                </label>
+                <label class="row">
+                  <span>İkincil / Çerçeve Rengi:</span>
+                  <input type="color" value="${cid.c2}" oninput="setIdentityColor(${activeIdx}, 'c2', this.value)" style="width:46px;height:36px;cursor:pointer;padding:2px">
+                </label>
+              </div>
+            </div>
+          ` : `
+            <div>
+              <div class="row" style="justify-content:space-between;margin-bottom:10px">
+                <label style="font-weight:600;font-size:.84rem">Gerçek Takım Logosu Seç:</label>
+                <select onchange="ID_EDIT.lgFilter=this.value;render()">
+                  <option value="">Tüm Ligler (${CLUBS.length})</option>
+                  ${LEAGUES.map(lg => `<option value="${lg}" ${ID_EDIT.lgFilter === lg ? "selected" : ""}>${lg}</option>`).join("")}
+                </select>
+              </div>
+              <div class="chips" style="max-height:260px;overflow:auto;padding:4px">
+                ${clubsToShow.map(c => {
+                  const esc = c.replace(/'/g, "\\'");
+                  return `
+                    <button class="chip" aria-pressed="${cid.club === c}" onclick="setIdentityClubLogo(${activeIdx}, '${esc}')">
+                      ${clubLogo(c, 22)} <span>${c}</span>
+                    </button>
+                  `;
+                }).join("")}
+              </div>
+            </div>
+          `}
+        </div>
+
+        <div>
+          <h3 style="margin-bottom:10px">Takım Önizlemesi & Kadro Özeti</h3>
+          ${squadCard(tm, -1)}
+          <div class="row" style="justify-content:flex-end;margin-top:12px">
+            <button class="pri" onclick="confirmTeamIdentity(${activeIdx})">
+              Takım Kimliğini Onayla & Dizilişe Geç →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 10. SABİT SLOTLU İLK 11 & 3 YEDEK KADRO DİZİLİŞİ YÖNETİMİ
+function getFormationDef(formName) {
+  return FORMATIONS[formName] || FORMATIONS["4-3-3"];
+}
+
 function ensureTeamLineup(t) {
   if (t.starters && t.starters.length === STARTERS_COUNT && t.bench && t.bench.length === t.picks.length - STARTERS_COUNT) {
     return;
@@ -1225,25 +1535,26 @@ function ensureTeamLineup(t) {
 
 function autoBuildLineupForTeam(t, formName = "4-3-3") {
   t.formation = formName;
-  const need = FORMATIONS[formName] || FORMATION_QUOTA;
+  const fDef = getFormationDef(formName);
   const sorted = [...t.picks].sort((a, b) => b.r - a.r);
   const used = new Set();
-  const starters = [];
 
-  for (const k of POSITIONS) {
-    const matches = sorted.filter(p => p.pos === k && !used.has(p.id)).slice(0, need[k]);
-    matches.forEach(p => {
-      used.add(p.id);
-      starters.push(p);
-    });
-  }
-  while (starters.length < STARTERS_COUNT) {
-    const nextP = sorted.find(p => !used.has(p.id));
-    if (!nextP) break;
-    used.add(nextP.id);
-    starters.push(nextP);
-  }
-  t.starters = starters;
+  const rowBuckets = fDef.rows.map(rDef => {
+    const matched = sorted.filter(p => p.pos === rDef.pos && !used.has(p.id)).slice(0, rDef.count);
+    matched.forEach(p => used.add(p.id));
+    return { count: rDef.count, players: matched };
+  });
+
+  rowBuckets.forEach(b => {
+    while (b.players.length < b.count) {
+      const nextP = sorted.find(p => !used.has(p.id));
+      if (!nextP) break;
+      used.add(nextP.id);
+      b.players.push(nextP);
+    }
+  });
+
+  t.starters = rowBuckets.flatMap(b => b.players);
   t.bench = t.picks.filter(p => !used.has(p.id));
 }
 
@@ -1254,6 +1565,8 @@ function broadcastMyLineup(teamIdx, ready = false) {
   sendNetMsg({
     type: "LINEUP_SYNC",
     teamIdx,
+    name: tm.name,
+    customIdentity: tm.customIdentity,
     formation: tm.formation,
     starterIds: tm.starters.map(p => p.id),
     benchIds: tm.bench.map(p => p.id),
@@ -1319,27 +1632,28 @@ function changeFormation(teamIdx, formName) {
   render();
 }
 
-function groupStartersForPitch(t) {
+function buildPitchRowsForTeam(t) {
   ensureTeamLineup(t);
-  const need = FORMATIONS[t.formation || "4-3-3"] || FORMATION_QUOTA;
-  const L = { GK: [], DEF: [], MID: [], FWD: [] };
-  const used = new Set();
+  const fDef = getFormationDef(t.formation || "4-3-3");
+  let cursor = 0;
+  return fDef.rows.map(rDef => {
+    const slice = t.starters.slice(cursor, cursor + rDef.count);
+    cursor += rDef.count;
+    return {
+      label: rDef.label,
+      pos: rDef.pos,
+      count: rDef.count,
+      players: slice
+    };
+  });
+}
 
-  for (const k of POSITIONS) {
-    const inPos = t.starters.filter(p => p.pos === k && !used.has(p.id)).slice(0, need[k]);
-    inPos.forEach(p => {
-      used.add(p.id);
-      L[k].push(p);
-    });
-  }
-  for (const k of ["FWD", "MID", "DEF", "GK"]) {
-    while (L[k].length < need[k]) {
-      const p = t.starters.find(x => !used.has(x.id));
-      if (!p) break;
-      used.add(p.id);
-      L[k].push(p);
-    }
-  }
+function groupStartersForPitch(t) {
+  const rows = buildPitchRowsForTeam(t);
+  const L = { GK: [], DEF: [], MID: [], FWD: [] };
+  rows.forEach(r => {
+    L[r.pos].push(...r.players);
+  });
   return L;
 }
 
@@ -1347,38 +1661,35 @@ function renderResult() {
   G.teams.forEach(ensureTeamLineup);
   const activeTeamIdx = NET.connected ? NET.myTeamIdx : (SWAP.teamIdx < G.teams.length ? SWAP.teamIdx : 0);
   const myTeam = G.teams[activeTeamIdx];
-  const L = groupStartersForPitch(myTeam);
+  const pitchRows = buildPitchRowsForTeam(myTeam);
   const isTourney = G.teams.length > 2;
 
   app.innerHTML = hdr() + renderOnlineModal() + `
     <section class="hero">
-      <span class="eyebrow">Draft Tamamlandı · Kadro & Yedek Kulübesi Dizilişi</span>
-      <h1>Ana Kadronu (İlk 11) ve 3 Yedeğini Diz!</h1>
-      <p>Seçtiğin 14 oyuncudan sahaya çıkacak <b>İlk 11 Ana Kadronu</b> ve <b>3 Yedek Oyuncunu</b> belirle. Sahadaki bir oyuncuya ve ardından yedek kulübesindeki bir oyuncuya tıklayarak <b>yerlerini değiştirebilirsin</b>!</p>
-      <div class="row" style="margin-top:16px">
+      <span class="eyebrow">Kadro & Diziliş</span>
+      <h1>İlk 11 ve 3 Yedek Oyuncunu Belirle</h1>
+      <p>Sahadaki veya yedek kulübesindeki herhangi iki oyuncuya tıklayarak doğrudan yerlerini değiştirebilirsin.</p>
+      <div class="row" style="margin-top:14px">
         ${NET.connected ? `
           <button class="${NET.readyMap[NET.myTeamIdx] ? 'gold' : 'pri'}" onclick="markMyLineupReady()">
-            ${NET.readyMap[NET.myTeamIdx] ? "✅ Kadron Hazır (Arkadaşın Bekleniyor)" : "✅ Kadromu Onayla (Hazırım)"}
+            ${NET.readyMap[NET.myTeamIdx] ? "Kadron Hazır" : "Kadromu Onayla"}
           </button>
-          <span class="stat-pill">
-            Durum: <b>${G.teams[0].name} ${NET.readyMap[0] ? "✅ Hazır" : "⏳ Diziyor"}</b> ·
-            <b>${G.teams[1].name} ${NET.readyMap[1] ? "✅ Hazır" : "⏳ Diziyor"}</b>
-          </span>
         ` : ""}
         <button class="pri" ${NET.connected && NET.role === "guest" ? "disabled" : ""} onclick="goMatchDirect()">
-          🏆 ${isTourney ? "Yarı Final & Final Turnuvasına Geç" : "90 Dk Canlı Maça Geç (30 Sn)"}
+          ${isTourney ? "Turnuva Eşleşmelerine Geç" : "90 Dk Maç Simülasyonuna Geç"}
         </button>
-        <button onclick="startDraft()">🔄 Yeni Draft Yap</button>
+        <button onclick="S.view='identity';render()">Takım İsmi & Logosunu Düzenle</button>
+        <button onclick="startDraft()">Yeni Draft</button>
       </div>
     </section>
 
     <div class="panel">
       <div class="panel-head">
         <div class="row">
-          <h2>⚽ Taktik Tahtası & İlk 11 Dizilişi (${myTeam.name})</h2>
+          <h2 class="club-cell">${renderTeamIdentityBadge(myTeam, 26)} <span>Taktik Tahtası (${myTeam.name})</span></h2>
           ${!NET.connected ? G.teams.map((tm, idx) => `
             <button class="sm ${activeTeamIdx === idx ? 'pri' : ''}" onclick="SWAP.teamIdx=${idx};SWAP.selectedId=null;render()">
-              ${tm.name}
+              ${renderTeamIdentityBadge(tm, 16)} ${tm.name}
             </button>
           `).join("") : ""}
         </div>
@@ -1391,20 +1702,16 @@ function renderResult() {
         </div>
       </div>
 
-      <p class="muted" style="margin:0 0 12px;font-size:.86rem">
-        💡 <b>Nasıl Değiştirilir?</b> İlk 11'deki veya Yedek Kulübesindeki bir oyuncunun üzerine tıkla, sonra yer değiştirmek istediğin diğer oyuncuya tıkla!
-      </p>
-
       <div class="lineup-editor">
         <div>
-          <h3 style="margin-bottom:8px;color:var(--pri)">🏟️ ANA KADRO (İLK 11 · ${myTeam.formation})</h3>
+          <h3 style="margin-bottom:8px;color:var(--pri-bright)">Ana Kadro (İlk 11 · ${myTeam.formation})</h3>
           <div class="pitch">
-            ${["FWD", "MID", "DEF", "GK"].map(k => `
+            ${pitchRows.map(row => `
               <div class="pl-row">
-                ${L[k].map(p => {
+                ${row.players.map(p => {
                   const isSel = SWAP.selectedId === p.id;
                   return `
-                    <div class="pl clickable-pl ${isSel ? 'selected-swap' : ''}" onclick="selectSwapPlayer(${activeTeamIdx}, ${p.id})" title="Değiştirmek için tıkla: ${p.n}">
+                    <div class="pl clickable-pl ${isSel ? 'selected-swap' : ''}" onclick="selectSwapPlayer(${activeTeamIdx}, ${p.id})" title="${p.n} (${row.label})">
                       <div class="row" style="gap:3px">${clubLogo(p.c, 16)} ${posTag(p.pos)}</div>
                       <small>${p.n.split(" ").pop()}</small>
                     </div>
@@ -1416,7 +1723,7 @@ function renderResult() {
         </div>
 
         <div>
-          <h3 style="margin-bottom:8px;color:var(--t-elite)">🪑 YEDEK KULÜBESİ (3 YEDEK OYUNCU)</h3>
+          <h3 style="margin-bottom:8px;color:var(--t-elite)">Yedek Kulübesi (3 Oyuncu)</h3>
           <div class="bench-list">
             ${myTeam.bench.map(p => {
               const isSel = SWAP.selectedId === p.id;
@@ -1428,13 +1735,13 @@ function renderResult() {
                     <b>${p.n}</b>
                     <span class="muted" style="font-size:.8rem">(${p.c})</span>
                   </span>
-                  <button class="sm ${isSel ? 'gold' : ''}">${isSel ? "Seçildi (İlk 11'den Seç)" : "🔄 İlk 11'e Al"}</button>
+                  <button class="sm ${isSel ? 'gold' : ''}">${isSel ? "Seçildi" : "Değiştir"}</button>
                 </div>
               `;
             }).join("")}
           </div>
 
-          <h3 style="margin:18px 0 8px">📋 İlk 11 Oyuncu Listesi</h3>
+          <h3 style="margin:18px 0 8px">İlk 11 Listesi</h3>
           <div class="sq" style="margin-bottom:0">
             <ol>
               ${myTeam.starters.map(p => {
@@ -1442,7 +1749,7 @@ function renderResult() {
                 return `
                   <li style="cursor:pointer;${isSel ? 'color:var(--t-elite);font-weight:700' : ''}" onclick="selectSwapPlayer(${activeTeamIdx}, ${p.id})">
                     <span class="club-cell">${posTag(p.pos)} ${clubLogo(p.c, 16)} <b>${p.n}</b> <span class="muted">${p.c}</span></span>
-                    <span class="muted" style="font-size:.78rem">${isSel ? "Seçildi" : "İlk 11"}</span>
+                    <span class="muted" style="font-size:.77rem">${isSel ? "Seçildi" : "İlk 11"}</span>
                   </li>
                 `;
               }).join("")}
@@ -1454,7 +1761,7 @@ function renderResult() {
   `;
 }
 
-// 11. MAÇ SİMÜLASYONU
+// 11. DENGELİ MAÇ SİMÜLASYONU
 const tot = t => {
   ensureTeamLineup(t);
   return t.starters.reduce((s, p) => s + p.r, 0);
@@ -1472,9 +1779,11 @@ const av = a => a.reduce((s, p) => s + p.r, 0) / (a.length || 1);
 
 function side(t) {
   const L = lineup(t);
+  const pitchRows = buildPitchRowsForTeam(t);
   const avg = avgRating(t);
   return {
     L,
+    pitchRows,
     avg,
     att: (av(L.FWD) * 3 + av(L.MID) * 2) / 5,
     def: (av(L.DEF) * 3 + av(L.GK) * 2) / 5,
@@ -1484,10 +1793,10 @@ function side(t) {
 
 function pickGoalscorer(L, sentOffSet = new Set()) {
   const weights = [];
-  for (const [k, posMult] of [["FWD", 5.2], ["MID", 2.4], ["DEF", 0.55]]) {
+  for (const [k, posMult] of [["FWD", 5.2], ["MID", 2.5], ["DEF", 0.6]]) {
     L[k].forEach(p => {
       if (sentOffSet.has(p.id)) return;
-      const ratingFactor = Math.pow(Math.max(10, p.r - 55), 1.6);
+      const ratingFactor = Math.pow(Math.max(10, p.r - 55), 1.45);
       weights.push([p, posMult * ratingFactor]);
     });
   }
@@ -1504,7 +1813,7 @@ function pickAssister(L, scorer, sentOffSet = new Set()) {
   for (const [k, posMult] of [["MID", 4.8], ["FWD", 3.1], ["DEF", 1.35], ["GK", 0.12]]) {
     L[k].forEach(p => {
       if (p.id === scorer.id || sentOffSet.has(p.id)) return;
-      const ratingFactor = Math.pow(Math.max(10, p.r - 55), 1.45);
+      const ratingFactor = Math.pow(Math.max(10, p.r - 55), 1.35);
       weights.push([p, posMult * ratingFactor]);
     });
   }
@@ -1522,8 +1831,8 @@ function generateMatchPlan(teamA, teamB, sA, sB) {
 
   const redCardMinutes = [null, null];
   [0, 1].forEach(sideIdx => {
-    if (Math.random() < 0.14) {
-      const rcMin = 18 + ((Math.random() * 58) | 0);
+    if (Math.random() < 0.13) {
+      const rcMin = 20 + ((Math.random() * 56) | 0);
       redCardMinutes[sideIdx] = rcMin;
       const sObj = sideIdx === 0 ? sA : sB;
       const candidates = [...sObj.L.DEF, ...sObj.L.MID];
@@ -1538,40 +1847,28 @@ function generateMatchPlan(teamA, teamB, sA, sB) {
     }
   });
 
-  const luckA = (Math.random() - 0.5) * 2.9;
-  const luckB = (Math.random() - 0.5) * 2.9;
-  const redPenA = redCardMinutes[0] ? ((90 - redCardMinutes[0]) / 90) * 2.4 : 0;
-  const redPenB = redCardMinutes[1] ? ((90 - redCardMinutes[1]) / 90) * 2.4 : 0;
+  const rawDiff = sA.avg - sB.avg;
+  const compressedDiff = Math.max(-1.25, Math.min(1.25, rawDiff * 0.35));
 
-  const effA = sA.avg + luckA - redPenA;
-  const effB = sB.avg + luckB - redPenB;
-  const diff = effA - effB;
-  const absDiff = Math.abs(diff);
+  const matchDaySwing = (Math.random() - 0.5) * 3.7;
+  const redPenA = redCardMinutes[0] ? ((90 - redCardMinutes[0]) / 90) * 1.45 : 0;
+  const redPenB = redCardMinutes[1] ? ((90 - redCardMinutes[1]) / 90) * 1.45 : 0;
+
+  const netAdvantage = compressedDiff + matchDaySwing - redPenA + redPenB;
+  const absAdv = Math.abs(netAdvantage);
 
   let regGoals = [1, 1];
   let goesToET = false;
 
-  if (absDiff < 1.15 && Math.random() < 0.42) {
+  if (absAdv < 0.55 || Math.random() < 0.24) {
     const drawScores = [[1, 1], [2, 2], [1, 1], [0, 0]];
     regGoals = drawScores[(Math.random() * drawScores.length) | 0];
     goesToET = true;
   } else {
-    const regWinner = diff >= 0 ? 0 : 1;
-    let wG, lG;
-    if (absDiff >= 3.2) {
-      wG = 3 + ((Math.random() * 2) | 0);
-      lG = Math.random() < 0.55 ? 0 : 1;
-    } else if (absDiff >= 1.5) {
-      wG = 2 + ((Math.random() * 2) | 0);
-      lG = Math.max(0, wG - 2 + ((Math.random() * 2) | 0));
-      if (lG >= wG) lG = wG - 1;
-    } else {
-      const closePatterns = [[2, 1], [1, 0], [3, 2], [2, 1]];
-      const ch = closePatterns[(Math.random() * closePatterns.length) | 0];
-      wG = ch[0];
-      lG = ch[1];
-    }
-    regGoals = regWinner === 0 ? [wG, lG] : [lG, wG];
+    const regWinner = netAdvantage >= 0 ? 0 : 1;
+    const closePatterns = [[2, 1], [1, 0], [3, 2], [2, 0], [3, 1], [2, 1]];
+    const ch = closePatterns[(Math.random() * closePatterns.length) | 0];
+    regGoals = regWinner === 0 ? [ch[0], ch[1]] : [ch[1], ch[0]];
   }
 
   const usedMinutes = new Set([45, 90, 105, 120, redCardMinutes[0], redCardMinutes[1]]);
@@ -1591,7 +1888,7 @@ function generateMatchPlan(teamA, teamB, sA, sB) {
     const sideObj = sideIdx === 0 ? sA : sB;
     const oppObj = sideIdx === 0 ? sB : sA;
     for (let g = 0; g < count; g++) {
-      const min = pickMinute(3, 89);
+      const min = pickMinute(4, 89);
       const activeSentOff = (redCardMinutes[sideIdx] && min > redCardMinutes[sideIdx]) ? sentOff[sideIdx] : new Set();
       const scorer = pickGoalscorer(sideObj.L, activeSentOff);
       const assister = pickAssister(sideObj.L, scorer, activeSentOff);
@@ -1612,7 +1909,7 @@ function generateMatchPlan(teamA, teamB, sA, sB) {
 
   if (goesToET) {
     if (Math.random() < 0.48) {
-      const etWinner = (effA + (Math.random() - 0.5) * 1.2 >= effB) ? 0 : 1;
+      const etWinner = (netAdvantage + (Math.random() - 0.5) * 2.0 >= 0) ? 0 : 1;
       const etMin = pickMinute(93, 118);
       const sideObj = etWinner === 0 ? sA : sB;
       const oppObj = etWinner === 0 ? sB : sA;
@@ -1629,7 +1926,7 @@ function generateMatchPlan(teamA, teamB, sA, sB) {
       finalWinnerSide = etWinner;
     } else {
       goesToPenalties = true;
-      const penWinner = (effA + (Math.random() - 0.5) * 1.8 >= effB) ? 0 : 1;
+      const penWinner = Math.random() < 0.5 ? 0 : 1;
       const penPatterns = [[5, 4], [4, 3], [5, 3], [4, 2], [6, 5]];
       const pat = penPatterns[(Math.random() * penPatterns.length) | 0];
       const penScore = penWinner === 0 ? [pat[0], pat[1]] : [pat[1], pat[0]];
@@ -1650,7 +1947,7 @@ function generateMatchPlan(teamA, teamB, sA, sB) {
   for (let m = 2; m < maxMin; m++) {
     if (m === 45 || m === 90 || m === 105 || scheduledByMin[m].length > 0) continue;
     if (Math.random() < 0.21) {
-      const attSide = Math.random() < (sA.mid / (sA.mid + sB.mid)) ? 0 : 1;
+      const attSide = Math.random() < 0.5 ? 0 : 1;
       const sideObj = attSide === 0 ? sA : sB;
       const oppObj = attSide === 0 ? sB : sA;
       const shooter = pickGoalscorer(sideObj.L, sentOff[attSide]);
@@ -1687,25 +1984,24 @@ function initTournament() {
   if (n === 2) {
     T = {
       matches: [
-        { id: "FINAL", title: "🏆 BÜYÜK FİNAL", a: 0, b: 1, done: false, sc: null, pen: null, winner: null, goals: [] }
+        { id: "FINAL", title: "BÜYÜK FİNAL", a: 0, b: 1, done: false, sc: null, pen: null, winner: null, goals: [] }
       ],
       champion: null
     };
   } else if (n === 3) {
-    const ranked = G.teams.map((t, i) => ({ i, avg: avgRating(t) })).sort((x, y) => y.avg - x.avg);
     T = {
       matches: [
-        { id: "SF1", title: "⚡ YARI FİNAL", a: ranked[1].i, b: ranked[2].i, done: false, sc: null, pen: null, winner: null, goals: [] },
-        { id: "FINAL", title: "🏆 BÜYÜK FİNAL", a: ranked[0].i, b: null, done: false, sc: null, pen: null, winner: null, goals: [] }
+        { id: "SF1", title: "YARI FİNAL", a: 1, b: 2, done: false, sc: null, pen: null, winner: null, goals: [] },
+        { id: "FINAL", title: "BÜYÜK FİNAL", a: 0, b: null, done: false, sc: null, pen: null, winner: null, goals: [] }
       ],
       champion: null
     };
   } else {
     T = {
       matches: [
-        { id: "SF1", title: "⚡ YARI FİNAL 1", a: 0, b: 3, done: false, sc: null, pen: null, winner: null, goals: [] },
-        { id: "SF2", title: "⚡ YARI FİNAL 2", a: 1, b: 2, done: false, sc: null, pen: null, winner: null, goals: [] },
-        { id: "FINAL", title: "🏆 BÜYÜK FİNAL", a: null, b: null, done: false, sc: null, pen: null, winner: null, goals: [] }
+        { id: "SF1", title: "YARI FİNAL 1", a: 0, b: 3, done: false, sc: null, pen: null, winner: null, goals: [] },
+        { id: "SF2", title: "YARI FİNAL 2", a: 1, b: 2, done: false, sc: null, pen: null, winner: null, goals: [] },
+        { id: "FINAL", title: "BÜYÜK FİNAL", a: null, b: null, done: false, sc: null, pen: null, winner: null, goals: [] }
       ],
       champion: null
     };
@@ -1874,14 +2170,14 @@ function stepMinute(m) {
       M.sc[i]++;
       M.shots[i]++;
       M.onTarget[i]++;
-      M.xg[i] += 0.38 + Math.random() * 0.25;
+      M.xg[i] += 0.36 + Math.random() * 0.22;
 
       const scId = ev.scorer.id;
       if (!M.playerStats[scId]) M.playerStats[scId] = { goals: 0, assists: 0, red: false };
       M.playerStats[scId].goals++;
       M.lastHighlightGoal = scId;
 
-      let astText = "Bireysel beceri";
+      let astText = "Bireysel";
       if (ev.assister) {
         const asId = ev.assister.id;
         if (!M.playerStats[asId]) M.playerStats[asId] = { goals: 0, assists: 0, red: false };
@@ -1900,7 +2196,7 @@ function stepMinute(m) {
         min: m,
         isGoal: true,
         isRed: false,
-        text: `⚽ GOL! <b>${ev.scorer.n}</b> ağları havalandırdı! <span class="muted">(${astText} · ${names[i]})</span>`
+        text: `GOL! <b>${ev.scorer.n}</b> topu ağlara gönderdi. <span class="muted">(${astText} · ${names[i]})</span>`
       });
     } else if (ev.type === "red") {
       M.redCards[i]++;
@@ -1918,27 +2214,27 @@ function stepMinute(m) {
         min: m,
         isGoal: false,
         isRed: true,
-        text: `🟥 <b>KIRMIZI KART! ${ev.player.n}</b> (${names[i]}) sert müdahale sonrası doğrudan oyun dışı kaldı! <b>${names[i]}</b> 10 kişi devam ediyor, takım performansı <b>%${M.perfFactor[i]}</b> seviyesine düştü!`
+        text: `KIRMIZI KART! <b>${ev.player.n}</b> (${names[i]}) oyun dışı kaldı. Takım performansı %${M.perfFactor[i]} seviyesine geriledi.`
       });
     } else if (ev.type === "save") {
       M.shots[i]++;
       M.onTarget[i]++;
       M.saves[1 - i]++;
-      M.xg[i] += 0.12 + Math.random() * 0.1;
+      M.xg[i] += 0.11 + Math.random() * 0.1;
       M.log.push({
         min: m,
         isGoal: false,
         isRed: false,
-        text: `🧤 <b>${ev.player.n}</b> (${names[i]}) sert vurdu, kaleci <b>${ev.gk.n}</b> köşeden çıkardı!`
+        text: `<b>${ev.player.n}</b> (${names[i]}) şutunu çekti, kaleci <b>${ev.gk.n}</b> gole izin vermedi.`
       });
     } else if (ev.type === "post") {
       M.shots[i]++;
-      M.xg[i] += 0.22;
+      M.xg[i] += 0.2;
       M.log.push({
         min: m,
         isGoal: false,
         isRed: false,
-        text: `💥 DİREK! <b>${ev.player.n}</b> (${names[i]}) ceza sahası dışından vurdu, top direkten döndü!`
+        text: `DİREK! <b>${ev.player.n}</b> (${names[i]}) sert vurdu, top direkten döndü.`
       });
     } else if (ev.type === "miss") {
       M.shots[i]++;
@@ -1947,14 +2243,14 @@ function stepMinute(m) {
         min: m,
         isGoal: false,
         isRed: false,
-        text: `🎯 <b>${ev.player.n}</b> (${names[i]}) pozisyona girdi ancak şutu auta çıktı.`
+        text: `<b>${ev.player.n}</b> (${names[i]}) uygun pozisyonda şutunu auta gönderdi.`
       });
     } else if (ev.type === "card") {
       M.log.push({
         min: m,
         isGoal: false,
         isRed: false,
-        text: `🟨 Taktik faul sonrası <b>${ev.player.n}</b> (${names[i]}) sarı kart gördü.`
+        text: `<b>${ev.player.n}</b> (${names[i]}) sarı kart gördü.`
       });
     }
   }
@@ -1964,21 +2260,21 @@ function stepMinute(m) {
       min: 45,
       isGoal: false,
       isRed: false,
-      text: `⏱️ <b>İlk Yarı Sona Erdi</b> · Skor: ${M.sc[0]} - ${M.sc[1]}`
+      text: `<b>İlk Yarı Sona Erdi</b> · Skor: ${M.sc[0]} - ${M.sc[1]}`
     });
   } else if (m === 90 && M.plan.goesToET) {
     M.log.push({
       min: 90,
       isGoal: true,
       isRed: false,
-      text: `⏱️ <b>Normal Süre Berabere Bitti (${M.sc[0]} - ${M.sc[1]})!</b> Maçta eşitlik bozulmadı, <b>Uzatmalara (91' - 120')</b> geçiliyor!`
+      text: `<b>Normal Süre Berabere Tamamlandı (${M.sc[0]} - ${M.sc[1]})</b> · Uzatma devrelerine geçiliyor.`
     });
   } else if (m === 105 && M.plan.goesToET) {
     M.log.push({
       min: 105,
       isGoal: false,
       isRed: false,
-      text: `⏱️ <b>1. Uzatma Devresi Sona Erdi</b> · Skor: ${M.sc[0]} - ${M.sc[1]}`
+      text: `<b>1. Uzatma Devresi Sona Erdi</b> · Skor: ${M.sc[0]} - ${M.sc[1]}`
     });
   }
 }
@@ -1990,22 +2286,21 @@ function renderBracketHTML() {
     <div class="bracket-panel" id="bracket-box">
       <div class="panel-head" style="margin-bottom:4px">
         <div>
-          <h2>🏆 Turnuva Eşleşme Ağacı (${G.teams.length > 2 ? "Yarı Final & Final" : "Büyük Final"})</h2>
-          <p class="muted" style="margin:2px 0 0;font-size:.83rem">Maçları ister 30 saniyelik canlı simülasyonla sahada izle, ister hızlı sonuçlandırarak Finale ilerle.</p>
+          <h2>Turnuva Eşleşme Ağacı</h2>
         </div>
         <div class="row">
           ${nextPending ? `
             <button class="sm pri" ${M && M.run ? "disabled" : ""} onclick="playBracketMatch('${nextPending.id}', false)">
-              ▶️ Sıradaki Maçı Canlı Oynat (${nextPending.title})
+              Sıradaki Maçı Oynat (${nextPending.title})
             </button>
           ` : ""}
           ${!T.champion ? `
             <button class="sm" ${M && M.run ? "disabled" : ""} onclick="simulateAllRemainingTournament()">
-              ⚡ Tüm Turnuvayı Hızlı Tamamla
+              Tüm Turnuvayı Hızlı Tamamla
             </button>
           ` : `
             <button class="sm" onclick="initTournament();matchSetup(T.matches[0].a, T.matches[0].b, T.matches[0].id)">
-              🔄 Turnuvayı Baştan Oynat
+              Turnuvayı Sıfırla
             </button>
           `}
         </div>
@@ -2021,23 +2316,23 @@ function renderBracketHTML() {
             <div class="br-card ${isCurrent ? 'active-match' : ''} ${bm.done ? 'done-match' : ''}">
               <div class="br-stage">
                 <span>${bm.title}</span>
-                <span>${bm.done ? "✅ Tamamlandı" : (isCurrent ? "🔴 Sahada" : "⏳ Bekliyor")}</span>
+                <span>${bm.done ? "Tamamlandı" : (isCurrent ? "Sahada" : "Bekliyor")}</span>
               </div>
               <div class="br-team-row ${bm.done && bm.winner === bm.a ? 'winner-row' : ''}">
-                <span>${tA ? `${tA.name}` : '<span class="muted">Yarı Final 1 Kazananı</span>'}</span>
+                <span class="club-cell">${tA ? `${renderTeamIdentityBadge(tA, 18)} <span>${tA.name}</span>` : '<span class="muted">Yarı Final 1 Kazananı</span>'}</span>
                 <span class="br-score">${bm.done && bm.sc ? `${bm.sc[0]}${bm.pen ? ` (${bm.pen[0]})` : ''}` : (isCurrent ? M.sc[0] : "–")}</span>
               </div>
               <div class="br-team-row ${bm.done && bm.winner === bm.b ? 'winner-row' : ''}">
-                <span>${tB ? `${tB.name}` : '<span class="muted">Yarı Final Kazananı</span>'}</span>
+                <span class="club-cell">${tB ? `${renderTeamIdentityBadge(tB, 18)} <span>${tB.name}</span>` : '<span class="muted">Yarı Final Kazananı</span>'}</span>
                 <span class="br-score">${bm.done && bm.sc ? `${bm.sc[1]}${bm.pen ? ` (${bm.pen[1]})` : ''}` : (isCurrent ? M.sc[1] : "–")}</span>
               </div>
               <div class="row" style="margin-top:4px;justify-content:space-between">
                 <button class="sm ${!bm.done && canPlay ? 'pri' : ''}" ${canPlay ? "" : "disabled"} onclick="playBracketMatch('${bm.id}', false)">
-                  ${bm.done ? "🔄 Tekrar İzle" : "▶️ Canlı Oynat (30 Sn)"}
+                  ${bm.done ? "Tekrar İzle" : "Canlı Oynat (30 Sn)"}
                 </button>
                 ${!bm.done && tA && tB ? `
                   <button class="sm" ${canPlay ? "" : "disabled"} onclick="playBracketMatch('${bm.id}', true)">
-                    ⏭ Hızlı Sonuç
+                    Hızlı Sonuç
                   </button>
                 ` : ""}
               </div>
@@ -2048,12 +2343,14 @@ function renderBracketHTML() {
 
       ${T.champion != null ? `
         <div class="champ-banner">
-          <div>
-            <span class="eyebrow" style="margin-bottom:4px">Turnuva Tamamlandı</span>
-            <h3>🏆 TURNUVA ŞAMPİYONU: ${G.teams[T.champion].name}</h3>
-            <div class="muted" style="font-size:.9rem">Tebrikler! Yarı Final ve Final etaplarını geçerek kupaya uzandı!</div>
+          <div class="club-cell" style="gap:12px">
+            ${renderTeamIdentityBadge(G.teams[T.champion], 44)}
+            <div>
+              <span class="eyebrow" style="margin-bottom:2px">Turnuva Tamamlandı</span>
+              <h3>ŞAMPİYON: ${G.teams[T.champion].name}</h3>
+            </div>
           </div>
-          <button class="gold" onclick="startDraft()">🔄 Yeni Draft & Turnuva Başlat</button>
+          <button class="gold" onclick="startDraft()">Yeni Draft Başlat</button>
         </div>
       ` : ""}
     </div>
@@ -2063,19 +2360,20 @@ function renderBracketHTML() {
 function renderPitchHTML(t, s, sideIdx) {
   const perf = M ? M.perfFactor[sideIdx] : 100;
   const rc = M ? M.redCards[sideIdx] : 0;
+  const pitchRows = s.pitchRows || buildPitchRowsForTeam(t);
   return `
     <div class="sq ${t.me ? "you" : ""}" style="margin-bottom:0">
       <div class="sq-head">
-        <h3>${t.name} <span class="muted" style="font-size:.82rem">(${t.formation || "4-3-3"})</span></h3>
-        <span class="muted" style="font-size:.8rem">
-          Performans: <b style="color:${perf < 100 ? 'var(--bad)' : 'var(--pri)'}">%${perf}</b>
-          ${rc ? ` · <span style="color:var(--bad)">🟥 ${rc} Kırmızı</span>` : ""}
+        <h3 class="club-cell">${renderTeamIdentityBadge(t, 20)} <span>${t.name}</span> <span class="muted" style="font-size:.8rem">(${t.formation || "4-3-3"})</span></h3>
+        <span class="muted" style="font-size:.78rem">
+          Performans: <b style="color:${perf < 100 ? 'var(--bad)' : 'var(--pri-bright)'}">%${perf}</b>
+          ${rc ? ` · <span style="color:var(--bad)">${rc} Kırmızı</span>` : ""}
         </span>
       </div>
       <div class="pitch">
-        ${["FWD", "MID", "DEF", "GK"].map(k => `
+        ${pitchRows.map(row => `
           <div class="pl-row">
-            ${s.L[k].map(p => {
+            ${row.players.map(p => {
               const st = M.playerStats[p.id] || { goals: 0, assists: 0, red: false };
               const hiGoal = M.lastHighlightGoal === p.id ? "highlight-goal" : "";
               const hiAst = M.lastHighlightAssist === p.id ? "highlight-assist" : "";
@@ -2086,9 +2384,9 @@ function renderPitchHTML(t, s, sideIdx) {
                   <small>${p.n.split(" ").pop()}</small>
                   ${(st.goals || st.assists || st.red) ? `
                     <div class="pl-events">
-                      ${st.goals ? `<span class="ev-badge ev-goal">⚽${st.goals > 1 ? st.goals : ""}</span>` : ""}
-                      ${st.assists ? `<span class="ev-badge ev-ast">🅰️${st.assists > 1 ? st.assists : ""}</span>` : ""}
-                      ${st.red ? `<span class="ev-badge ev-red">🟥</span>` : ""}
+                      ${st.goals ? `<span class="ev-badge ev-goal">G${st.goals > 1 ? st.goals : ""}</span>` : ""}
+                      ${st.assists ? `<span class="ev-badge ev-ast">A${st.assists > 1 ? st.assists : ""}</span>` : ""}
+                      ${st.red ? `<span class="ev-badge ev-red">KK</span>` : ""}
                     </div>
                   ` : ""}
                 </div>
@@ -2097,29 +2395,30 @@ function renderPitchHTML(t, s, sideIdx) {
           </div>
         `).join("")}
       </div>
-      <div class="muted" style="font-size:.78rem;margin-top:6px">
-        🪑 <b>Yedekler:</b> ${(t.bench || []).map(b => `${b.n.split(" ").pop()} (${POS_SHORT[b.pos]})`).join(", ")}
+      <div class="muted" style="font-size:.76rem;margin-top:6px">
+        <b>Yedekler:</b> ${(t.bench || []).map(b => `${b.n.split(" ").pop()} (${POS_SHORT[b.pos]})`).join(", ")}
       </div>
     </div>
   `;
 }
 
 function renderStatsComparison() {
-  const possA = Math.round(100 * Math.pow(M.sa.mid, 2) / (Math.pow(M.sa.mid, 2) + Math.pow(M.sb.mid, 2)));
+  const totShots = M.shots[0] + M.shots[1];
+  const possA = totShots ? Math.round(42 + 16 * (M.shots[0] / totShots)) : 50;
   const possB = 100 - possA;
   const rows = [
     ["Takım Performansı (%)", `%${M.perfFactor[0]}`, `%${M.perfFactor[1]}`, M.perfFactor[0] / 2, M.perfFactor[1] / 2],
     ["Topla Oynama (%)", `%${possA}`, `%${possB}`, possA, possB],
     ["Toplam Şut (İsabetli)", `${M.shots[0]} (${M.onTarget[0]})`, `${M.shots[1]} (${M.onTarget[1]})`,
-      M.shots[0] + M.shots[1] ? (100 * M.shots[0] / (M.shots[0] + M.shots[1])) : 50,
-      M.shots[0] + M.shots[1] ? (100 * M.shots[1] / (M.shots[0] + M.shots[1])) : 50],
+      totShots ? (100 * M.shots[0] / totShots) : 50,
+      totShots ? (100 * M.shots[1] / totShots) : 50],
     ["Gol Beklentisi (xG)", M.xg[0].toFixed(2), M.xg[1].toFixed(2),
       M.xg[0] + M.xg[1] ? (100 * M.xg[0] / (M.xg[0] + M.xg[1])) : 50,
       M.xg[0] + M.xg[1] ? (100 * M.xg[1] / (M.xg[0] + M.xg[1])) : 50],
     ["Kaleci Kurtarışı", M.saves[0], M.saves[1],
       M.saves[0] + M.saves[1] ? (100 * M.saves[0] / (M.saves[0] + M.saves[1])) : 50,
       M.saves[0] + M.saves[1] ? (100 * M.saves[1] / (M.saves[0] + M.saves[1])) : 50],
-    ["Kırmızı Kart (🟥)", M.redCards[0], M.redCards[1], 50, 50]
+    ["Kırmızı Kart", M.redCards[0], M.redCards[1], 50, 50]
   ];
   return `
     <div class="stat-bars">
@@ -2147,7 +2446,7 @@ function renderGoalAssistSummary() {
   ].sort((x, y) => x.min - y.min);
 
   if (!allGoals.length) {
-    return `<p class="muted" style="margin:0">Henüz gol kaydedilmedi. Maç başladığında goller ve asistler burada listelenir.</p>`;
+    return `<p class="muted" style="margin:0">Henüz gol kaydedilmedi.</p>`;
   }
 
   return `
@@ -2156,8 +2455,8 @@ function renderGoalAssistSummary() {
         <tr>
           <th>Dk.</th>
           <th>Takım</th>
-          <th>⚽ Golü Atan</th>
-          <th>🅰️ Asist Yapan</th>
+          <th>Gol</th>
+          <th>Asist</th>
         </tr>
       </thead>
       <tbody>
@@ -2182,18 +2481,6 @@ function drawMatch() {
   app.innerHTML = hdr() + renderOnlineModal() + `
     ${renderBracketHTML()}
 
-    <div class="bg-rule-banner">
-      <div>
-        ⚡ <b>${stageObj ? stageObj.title : "Özel Maç"}:</b> Kadro kalitesi + maç günü şans faktörü, kırmızı kart performans etkisi ve beraberlik halinde <b>Uzatmalar (120') & Seri Penaltılar</b> aktiftir.
-      </div>
-      <div class="row">
-        <span class="muted" style="font-size:.8rem">Simülasyon Hızı:</span>
-        <button id="sp-1" class="sm ${M.speed === 1 ? 'pri' : ''}" onclick="setSimSpeed(1)">1x (30sn)</button>
-        <button id="sp-2" class="sm ${M.speed === 2 ? 'pri' : ''}" onclick="setSimSpeed(2)">2x (15sn)</button>
-        <button id="sp-4" class="sm ${M.speed === 4 ? 'pri' : ''}" onclick="setSimSpeed(4)">4x (7.5sn)</button>
-      </div>
-    </div>
-
     <div class="row" style="margin-bottom:12px;justify-content:space-between">
       <div class="row">
         <label>Ev Sahibi:
@@ -2207,31 +2494,35 @@ function drawMatch() {
             ${G.teams.map((t, i) => `<option value="${i}" ${i === M.b ? "selected" : ""}>${t.name}</option>`).join("")}
           </select>
         </label>
+        <span class="muted" style="font-size:.8rem;margin-left:6px">Hız:</span>
+        <button id="sp-1" class="sm ${M.speed === 1 ? 'pri' : ''}" onclick="setSimSpeed(1)">1x</button>
+        <button id="sp-2" class="sm ${M.speed === 2 ? 'pri' : ''}" onclick="setSimSpeed(2)">2x</button>
+        <button id="sp-4" class="sm ${M.speed === 4 ? 'pri' : ''}" onclick="setSimSpeed(4)">4x</button>
       </div>
       <div class="row">
         <button class="pri" id="go-btn" onclick="toggleKickoff()">
-          ${M.min === 0 ? "▶️ Maçı Başlat (30 Sn)" : (M.min >= maxM ? "🔄 Bu Maçı Tekrar Oynat" : (M.run ? "⏸ Duraklat" : "▶️ Devam Et"))}
+          ${M.min === 0 ? "Maçı Başlat (30 Sn)" : (M.min >= maxM ? "Tekrar Oynat" : (M.run ? "Duraklat" : "Devam Et"))}
         </button>
-        <button id="inst-btn" ${M.min >= maxM ? "disabled" : ""} onclick="finishInstantly()">⏭ Anında Bitir</button>
-        <button onclick="if(M&&M.tm)clearInterval(M.tm);S.view='result';render()">📋 İlk 11 & Yedekleri Düzenle</button>
+        <button id="inst-btn" ${M.min >= maxM ? "disabled" : ""} onclick="finishInstantly()">Anında Bitir</button>
+        <button onclick="if(M&&M.tm)clearInterval(M.tm);S.view='result';render()">Dizilişe Dön</button>
       </div>
     </div>
 
     <div class="scoreboard">
       <div class="sb-top">
         <div class="sb-team">
-          <h2>${A.name}</h2>
+          <h2 class="club-cell">${renderTeamIdentityBadge(A, 34)} <span>${A.name}</span></h2>
           <div><span class="sb-avg">Diziliş: <b>${A.formation || "4-3-3"}</b> · Performans: <b id="pf-a">%${M.perfFactor[0]}</b></span></div>
         </div>
         <div class="score-box">
           <div class="score" id="sc">${M.sc[0]} - ${M.sc[1]}</div>
           <div class="pen-score" id="pen-sc">${M.penSc ? `Penaltılar: ${M.penSc[0]} - ${M.penSc[1]}` : ""}</div>
           <div class="clock-pill ${M.run ? 'live' : ''}" id="mn">
-            ${M.min === 0 ? "Başlama Vuruşu Bekleniyor" : (M.min >= maxM ? `${maxM}' Maç Bitti` : M.min + ". Dakika")}
+            ${M.min === 0 ? (stageObj ? stageObj.title : "Başlama Vuruşu") : (M.min >= maxM ? `${maxM}' Maç Bitti` : M.min + ". Dakika")}
           </div>
         </div>
         <div class="sb-team right">
-          <h2>${B.name}</h2>
+          <h2 class="club-cell"><span>${B.name}</span> ${renderTeamIdentityBadge(B, 34)}</h2>
           <div><span class="sb-avg">Diziliş: <b>${B.formation || "4-3-3"}</b> · Performans: <b id="pf-b">%${M.perfFactor[1]}</b></span></div>
         </div>
       </div>
@@ -2251,16 +2542,16 @@ function drawMatch() {
 
     <div class="match-grid">
       <div class="panel" style="margin-top:0">
-        <h2>⏱️ Canlı Maç Anlatımı (Goller, Asistler, Kartlar & Penaltılar)</h2>
+        <h2>Maç Olayları</h2>
         <ul class="log" id="log"></ul>
       </div>
       <div>
         <div class="panel" style="margin-top:0">
-          <h2>⚽ Gol & Asist Cetveli</h2>
+          <h2>Gol & Asist Cetveli</h2>
           <div id="ga-table">${renderGoalAssistSummary()}</div>
         </div>
         <div class="panel">
-          <h2>📈 Maç İstatistikleri</h2>
+          <h2>Maç İstatistikleri</h2>
           <div id="stats-box">${renderStatsComparison()}</div>
         </div>
       </div>
@@ -2298,12 +2589,12 @@ function refreshMatchLiveDOM() {
   const glA = $("#gl-a"), glB = $("#gl-b");
   if (glA) {
     glA.innerHTML = M.goalsList[0].map(g =>
-      `<li>⚽ <b>${g.min}' ${g.scorer}</b> ${g.assister ? `<span class="muted">(🅰️ ${g.assister})</span>` : ""}</li>`
+      `<li><b>${g.min}' ${g.scorer}</b> ${g.assister ? `<span class="muted">(Asist: ${g.assister})</span>` : ""}</li>`
     ).join("");
   }
   if (glB) {
     glB.innerHTML = M.goalsList[1].map(g =>
-      `<li>${g.assister ? `<span class="muted">(🅰️ ${g.assister})</span> ` : ""}<b>${g.scorer} ${g.min}'</b> ⚽</li>`
+      `<li>${g.assister ? `<span class="muted">(Asist: ${g.assister})</span> ` : ""}<b>${g.scorer} ${g.min}'</b></li>`
     ).join("");
   }
 
@@ -2325,7 +2616,7 @@ function refreshMatchLiveDOM() {
         <span class="min-tag">${item.min}'</span>
         <span>${item.text}</span>
       </li>
-    `).join("") || `<li class="muted">Maç henüz başlamadı. "Maçı Başlat (30 Sn)" butonuna tıklayın.</li>`;
+    `).join("") || `<li class="muted">Maç henüz başlamadı.</li>`;
   }
 }
 
@@ -2367,7 +2658,7 @@ function toggleKickoff(fromNet = false) {
     M.run = 0;
     if (M.tm) clearInterval(M.tm);
     const goBtn = $("#go-btn");
-    if (goBtn) goBtn.textContent = "▶️ Devam Et";
+    if (goBtn) goBtn.textContent = "Devam Et";
     const mn = $("#mn");
     if (mn) mn.classList.remove("live");
     return;
@@ -2376,7 +2667,7 @@ function toggleKickoff(fromNet = false) {
   const selA = $("#sel-a"), selB = $("#sel-b"), goBtn = $("#go-btn"), mn = $("#mn");
   if (selA) selA.disabled = true;
   if (selB) selB.disabled = true;
-  if (goBtn) goBtn.textContent = "⏸ Duraklat";
+  if (goBtn) goBtn.textContent = "Duraklat";
   if (mn) mn.classList.add("live");
   startIntervalLoop();
 }
@@ -2409,19 +2700,19 @@ function finishMatch() {
       min: 120,
       isGoal: true,
       isRed: false,
-      text: `⏱️ <b>120 Dakika Berabere Bitti (${M.sc[0]} - ${M.sc[1]})! Seri Penaltı Atışlarına Geçiliyor...</b>`
+      text: `<b>120 Dakika Berabere Bitti (${M.sc[0]} - ${M.sc[1]}) · Seri Penaltı Atışları Başlıyor</b>`
     });
 
     for (let r = 0; r < 5; r++) {
       const pA = pd.takersA[r] || "Oyuncu A";
       const pB = pd.takersB[r] || "Oyuncu B";
-      const hitA = r < pd.score[0] ? "✅ GOL" : "❌ Kaçırdı";
-      const hitB = r < pd.score[1] ? "✅ GOL" : "❌ Kaçırdı";
+      const hitA = r < pd.score[0] ? "GOL" : "Kaçırdı";
+      const hitB = r < pd.score[1] ? "GOL" : "Kaçırdı";
       M.log.push({
         min: "PEN",
         isGoal: false,
         isRed: false,
-        text: `🎯 <b>${r + 1}. Penaltılar:</b> ${A.name} - ${pA} (${hitA}) | ${B.name} - ${pB} (${hitB})`
+        text: `<b>${r + 1}. Penaltı:</b> ${A.name} - ${pA} (${hitA}) | ${B.name} - ${pB} (${hitB})`
       });
     }
   }
@@ -2443,25 +2734,26 @@ function finishMatch() {
   });
   const mvpStats = M.playerStats[mvp.id] || { goals: 0, assists: 0 };
 
-  const penSummary = M.penSc ? ` (Penaltılarla ${M.penSc[0]}-${M.penSc[1]})` : (M.plan.goesToET ? " (Uzatmalarda)" : "");
+  const penSummary = M.penSc ? ` (Penaltılar: ${M.penSc[0]}-${M.penSc[1]})` : (M.plan.goesToET ? " (Uzatmalarda)" : "");
   M.log.push({
     min: M.plan.maxMin || 90,
     isGoal: true,
     isRed: false,
-    text: `🏆 <b>Maç Sona Erdi: ${A.name} ${M.sc[0]} - ${M.sc[1]} ${B.name}${penSummary}</b> · Turu geçen: <b>${winner.name}</b>! ⭐ Maçın Adamı: <b>${mvp.n}</b> (${mvpStats.goals} Gol, ${mvpStats.assists} Asist)`
+    text: `<b>Maç Sonucu: ${A.name} ${M.sc[0]} - ${M.sc[1]} ${B.name}${penSummary}</b> · Kazanan: <b>${winner.name}</b> · Maçın Oyuncusu: <b>${mvp.n}</b> (${mvpStats.goals}G, ${mvpStats.assists}A)`
   });
 
   drawMatch();
 }
 
 function render() {
+  if (S.view === "clubs") return renderClubSelectScreen();
   if (!G || S.view === "setup") return setup();
+  if (S.view === "identity") return renderIdentityScreen();
   if (S.view === "match" && M) return drawMatch();
   if (G.k >= G.order.length || S.view === "result") return renderResult();
   return renderDraft();
 }
 
-// URL'de ?room=12345 varsa otomatik olarak odaya bağlan
 window.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(window.location.search);
   const roomParam = params.get("room");
