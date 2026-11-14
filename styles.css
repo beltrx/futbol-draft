@@ -1239,3 +1239,40 @@ td.n, th.n {
   display: inline-block;
   text-align: center;
 }
+
+
+.mode.special-career {
+  background: linear-gradient(135deg, rgba(22, 101, 52, 0.42), rgba(234, 179, 8, 0.22));
+  border: 1.5px solid rgba(234, 179, 8, 0.65);
+  box-shadow: 0 8px 28px rgba(234, 179, 8, 0.14);
+}
+.mode.special-career:hover {
+  border-color: var(--t-elite);
+  box-shadow: 0 10px 32px rgba(234, 179, 8, 0.26);
+}
+.mode.special-career[aria-pressed="true"] {
+  background: linear-gradient(135deg, rgba(22, 101, 52, 0.65), rgba(234, 179, 8, 0.34));
+  border-color: var(--t-elite);
+  box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.45), 0 12px 34px rgba(234, 179, 8, 0.28);
+}
+.mode.special-career h3 {
+  background: linear-gradient(90deg, #fde047, #4ade80);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 1.14rem;
+}
+.new-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #eab308, #22c55e);
+  color: #05100a;
+  font-family: var(--display);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}

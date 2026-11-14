@@ -1,11 +1,13 @@
-// ANA UYGULAMA, 2 ADIMLI KURULUM, DRAFT BİTİMİNDE TAKIM İSMİ & ARMA/LOGO TASARIMCISI, SABİT SLOTLU DİZİLİŞ VE DENGELİ MAÇ SİMÜLATÖRÜ
+// ANA UYGULAMA: ÇARK AI DÜZELTMESİ, İKONİK TAKIMLAR HAVUZU, LİG KARİYER MODU (ARKA PLAN OLAYLARI & TAKIM HABERLERİ SİSTEMİ)
 
 const MODES = [
+  { id: "career", name: "Lig Kariyer Modu", tag: "★ YENİ MOD · Tek Oyunculu Sezon", d: "360 M€ bütçeyle kadronu kur; Premier Lig'de 20 takımlı 19 haftalık fikstürde şampiyonluk mücadelesi ver!", clubs: "optional", cpu: "best", budget: 360, career: 1, special: 1 },
   { id: "classic", name: "Klasik Draft", tag: "Standart Seçim", d: "11 asil ve 3 yedek oyuncuyu sırayla seçerek kadronu oluştur.", clubs: "optional", cpu: "best" },
-  { id: "wheel", name: "Çark Draftı", tag: "Takım Çarkı", d: "Seçilen takımlar çarka yerleşir; çarkın verdiği kulüpten oyuncu kadrona katılır.", clubs: "optional", cpu: "best", wheel: 1 },
+  { id: "wheel", name: "Çark Draftı", tag: "Takım Çarkı", d: "Seçilen takımlar çarka yerleşir; hem sen hem de yapay zeka çarkı döndürerek çıkan kulüpten oyuncu alır.", clubs: "optional", cpu: "wheel", wheel: 1 },
+  { id: "iconic", name: "İkonik Draft", tag: "18 Efsane Kadro", d: "Real Madrid 16-17, Barça 14-15, Milan 04-05, Arsenal 03-04 gibi unutulmaz efsane kadrolarla draft yap.", clubs: "optional", cpu: "best", iconicDefault: 1 },
   { id: "club", name: "Kulüp Draftı", tag: "Özel Kulüp Havuzu", d: "Yalnızca belirlediğin kulüplerin oyuncularıyla draft yap.", clubs: "required", cpu: "best" },
   { id: "league", name: "Lig Draftı", tag: "Tüm Lig Havuzu", d: "Seçtiğin liglerdeki tüm kulüplerle kulüp elemesi olmadan doğrudan drafta başla.", clubs: "none", cpu: "best" },
-  { id: "random", name: "Rastgele Draft", tag: "Şans Seçimi", d: "Seçimler rastgele yapılır; tek tuşla kadroları tamamlayıp maça geçebilirsin.", clubs: "optional", cpu: "random" },
+  { id: "random", name: "Rastgele Draft", tag: "Şans Seçimi", d: "Seçimler rastgele yapılır; hızlıca kadroları tamamlayıp maça geçebilirsin.", clubs: "optional", cpu: "random" },
   { id: "budget", name: "Bütçe Draftı", tag: "360 M€ Bütçe", d: "Dinamik piyasa değerleriyle 360 M€ bütçeyi aşmadan 14 kişilik kadronu kur.", clubs: "optional", cpu: "best", budget: 360 }
 ];
 
@@ -75,10 +77,12 @@ const tier = r => r >= 88 ? "e" : r >= 85 ? "h" : r >= 82 ? "g" : r >= 78 ? "m" 
 const rt = r => `<span class="pos-badge pos-MID">★</span>`;
 const posTag = pos => `<span class="pos-badge pos-${pos || 'MID'}">${POS_SHORT[pos || 'MID']}</span>`;
 
+const MODERN_LEAGUES = LEAGUES.filter(l => l !== "İkonik Takımlar");
+
 let S = {
-  view: "setup", // "setup" | "clubs" | "draft" | "identity" | "result" | "match"
+  view: "setup", // "setup" | "clubs" | "draft" | "identity" | "result" | "match" | "league_select" | "league_hub"
   mode: "classic",
-  leagues: new Set(LEAGUES),
+  leagues: new Set(MODERN_LEAGUES),
   clubs: new Set(),
   opp: 1,
   humanCount: 1,
@@ -96,6 +100,7 @@ let G = null;
 let F = { q: "", lg: "", c: "", p: "" };
 let M = null;
 let T = null;
+let LG = null;
 let W = { spinning: false, angle: 0, selectedClub: null, offeredPlayers: [], jokers: 3 };
 let SWAP = { teamIdx: 0, selectedId: null };
 let ID_EDIT = { teamIdx: 0, lgFilter: "" };
@@ -104,14 +109,38 @@ const $ = s => document.querySelector(s);
 const app = $("#app");
 const currentMode = () => MODES.find(m => m.id === S.mode) || MODES[0];
 
+function selectMode(modeId) {
+  S.mode = modeId;
+  S.err = "";
+  if (modeId === "iconic") {
+    S.leagues = new Set(["İkonik Takımlar"]);
+    S.clubs = new Set(ICONIC_CLUBS);
+  } else if (modeId === "career") {
+    S.leagues.delete("İkonik Takımlar");
+    if (!S.leagues.size) S.leagues = new Set(MODERN_LEAGUES);
+    for (const c of [...S.clubs]) {
+      if (CLUB_TO_LEAGUE[c] === "İkonik Takımlar") S.clubs.delete(c);
+    }
+    S.opp = 1;
+    S.humanCount = 1;
+  } else {
+    if (S.leagues.size === 1 && S.leagues.has("İkonik Takımlar")) {
+      S.leagues = new Set(MODERN_LEAGUES);
+      S.clubs.clear();
+    }
+  }
+  render();
+}
+
 function hdr() {
+  const isCareer = G && G.m.career;
   return `
     <header class="top">
       <div class="logo-wrap">
         <div class="logo-badge">FD</div>
         <div>
           <div class="logo">Futbol <span>Draft</span></div>
-          <span class="logo-sub">2026-27 Sezonu · Kadro Kurulumu & Maç Simülatörü</span>
+          <span class="logo-sub">2026-27 Sezonu · Kadro, Lig Kariyeri & Turnuva Simülatörü</span>
         </div>
       </div>
       <div class="nav-actions">
@@ -121,7 +150,8 @@ function hdr() {
         </button>
         ${G && G.k >= G.order.length ? `<button onclick="S.view='identity';render()">Takım Kimliği & Logo</button>` : ""}
         ${G ? `<button onclick="S.view='result';render()">Kadro Dizilişi (11+3)</button>` : ""}
-        ${G ? `<button onclick="goMatchDirect()">Turnuva & Maç</button>` : ""}
+        ${G && isCareer && LG ? `<button class="pri" onclick="S.view='league_hub';render()">Premier Lig Merkezi</button>` : ""}
+        ${G && !isCareer ? `<button onclick="goMatchDirect()">Turnuva & Maç</button>` : ""}
         ${S.view !== "setup" ? `<button onclick="resetToSetup()">Ana Menü</button>` : ""}
       </div>
     </header>
@@ -139,9 +169,11 @@ function resetPool() {}
 
 function resetToSetup() {
   if (M && M.tm) clearInterval(M.tm);
+  if (cpuTimer) clearTimeout(cpuTimer);
   G = null;
   M = null;
   T = null;
+  LG = null;
   S.view = "setup";
   S.err = "";
   render();
@@ -153,6 +185,14 @@ function goMatchDirect() {
     autoCompleteDraft(true);
   }
   G.teams.forEach(ensureTeamLineup);
+  if (G.m.career) {
+    if (!LG) {
+      S.view = "league_select";
+    } else {
+      S.view = "league_hub";
+    }
+    return render();
+  }
   if (!T) initTournament();
   const nextMatch = getActiveTournamentMatch();
   if (nextMatch) {
@@ -261,7 +301,7 @@ function renderOnlineModal() {
   `;
 }
 
-// 6. KURULUM EKRANI (1. Ekran: Mod & Turnuva Ayarları -> 2. Ekran: Lig & Takım Seçimi)
+// 6. KURULUM EKRANI (1. Ekran: Mod & Turnuva Ayarları -> 2. Ekran: Lig, Güncel Takım ve İkonik Takım Seçimi)
 function toggleLeague(lg) {
   if (S.leagues.has(lg)) {
     if (S.leagues.size > 1) S.leagues.delete(lg);
@@ -279,12 +319,20 @@ function toggleLeague(lg) {
 function selectOnlyLeague(lg) {
   S.leagues = new Set([lg]);
   S.clubs.clear();
+  if (lg === "İkonik Takımlar") {
+    S.clubs = new Set(ICONIC_CLUBS);
+  }
   S.err = "";
   render();
 }
 
 function selectAllLeagues() {
-  S.leagues = new Set(LEAGUES);
+  const m = currentMode();
+  if (m.career) {
+    S.leagues = new Set(MODERN_LEAGUES);
+  } else {
+    S.leagues = new Set(LEAGUES);
+  }
   S.err = "";
   render();
 }
@@ -298,6 +346,20 @@ function selectTop5Leagues() {
   render();
 }
 
+function selectAllIconicClubs() {
+  S.leagues.add("İkonik Takımlar");
+  ICONIC_CLUBS.forEach(c => S.clubs.add(c));
+  S.err = "";
+  render();
+}
+
+function selectOnlyIconicClubs() {
+  S.leagues = new Set(["İkonik Takımlar"]);
+  S.clubs = new Set(ICONIC_CLUBS);
+  S.err = "";
+  render();
+}
+
 function proceedFromSetup() {
   S.err = "";
   S.view = "clubs";
@@ -305,18 +367,19 @@ function proceedFromSetup() {
 }
 
 function setup() {
+  const m = currentMode();
   app.innerHTML = hdr() + renderOnlineModal() + `
     <section class="hero">
-      <span class="eyebrow">Futbol Draft · 9 Lig · 46 Kulüp</span>
-      <h1>Kadro Draftı & Turnuva Simülatörü</h1>
-      <p>Oyun modunu ve turnuva ayarlarını belirle. Devam ettiğinde lig ve takım seçimi ekranı açılır; draft bittiğinde ise her oyuncu kendi takım ismini ve logosunu oluşturur.</p>
+      <span class="eyebrow">Futbol Draft · Güncel & İkonik Kadrolar · Lig Kariyer Modu</span>
+      <h1>Kadro Draftı, Lig Kariyeri & Turnuva Simülatörü</h1>
+      <p>Oyun modunu belirle. Devam ettiğinde lig, güncel kulüp ve İkonik Takım seçimi ekranı açılır.</p>
     </section>
 
     <div class="grid modes">
       ${MODES.map(x => `
-        <button class="mode" aria-pressed="${x.id === S.mode}" onclick="S.mode='${x.id}';S.err='';render()">
+        <button class="mode ${x.special ? 'special-career' : ''}" aria-pressed="${x.id === S.mode}" onclick="selectMode('${x.id}')">
           <div>
-            <small>${x.tag}</small>
+            ${x.special ? `<div class="new-mode-badge">★ YENİ OYUN MODU</div>` : `<small>${x.tag}</small>`}
             <h3>${x.name}</h3>
             <p>${x.d}</p>
           </div>
@@ -328,55 +391,66 @@ function setup() {
       <div class="panel-head">
         <h2>Oyun & Turnuva Ayarları</h2>
       </div>
-      <div class="row" style="gap:14px">
-        <label>Turnuva Boyutu:
-          <select onchange="S.opp=+this.value;if(S.humanCount>S.opp+1)S.humanCount=S.opp+1;render()">
-            <option value="1" ${S.opp === 1 ? "selected" : ""}>2 Takım (Doğrudan Final)</option>
-            <option value="2" ${S.opp === 2 ? "selected" : ""}>3 Takım (Yarı Final + Final)</option>
-            <option value="3" ${S.opp === 3 ? "selected" : ""}>4 Takım (Yarı Final & Final Turnuvası)</option>
-          </select>
-        </label>
-        <label>Katılımcı:
-          <select onchange="S.humanCount=+this.value;render()">
-            <option value="1" ${S.humanCount === 1 ? "selected" : ""}>Tek Oyuncu (vs CPU) / 2 PC Online</option>
-            ${Array.from({ length: S.opp }, (_, idx) => idx + 2).map(cnt => `
-              <option value="${cnt}" ${S.humanCount === cnt ? "selected" : ""}>Aynı Cihazda ${cnt} Oyuncu</option>
-            `).join("")}
-          </select>
-        </label>
-        <label>Draft Sırası:
-          <select onchange="S.format=this.value">
-            <option value="snake" ${S.format === "snake" ? "selected" : ""}>Yılan (Her tur döner)</option>
-            <option value="linear" ${S.format === "linear" ? "selected" : ""}>Doğrusal (Sabit sıra)</option>
-          </select>
-        </label>
-      </div>
+      ${m.career ? `
+        <p class="muted" style="margin:0 0 12px;font-size:.86rem">
+          <b>Lig Kariyer Modu (Tek Oyunculu):</b> 360 M€ bütçeyle 14 kişilik (11 Asil + 3 Yedek) kadronu kurduktan sonra takım ismini ve logonu belirleyip 20 takımlı Premier Lig sezonuna katılırsın.
+        </p>
+      ` : `
+        <div class="row" style="gap:14px">
+          <label>Turnuva Boyutu:
+            <select onchange="S.opp=+this.value;if(S.humanCount>S.opp+1)S.humanCount=S.opp+1;render()">
+              <option value="1" ${S.opp === 1 ? "selected" : ""}>2 Takım (Doğrudan Final)</option>
+              <option value="2" ${S.opp === 2 ? "selected" : ""}>3 Takım (Yarı Final + Final)</option>
+              <option value="3" ${S.opp === 3 ? "selected" : ""}>4 Takım (Yarı Final & Final Turnuvası)</option>
+            </select>
+          </label>
+          <label>Katılımcı:
+            <select onchange="S.humanCount=+this.value;render()">
+              <option value="1" ${S.humanCount === 1 ? "selected" : ""}>Tek Oyuncu (vs CPU) / 2 PC Online</option>
+              ${Array.from({ length: S.opp }, (_, idx) => idx + 2).map(cnt => `
+                <option value="${cnt}" ${S.humanCount === cnt ? "selected" : ""}>Aynı Cihazda ${cnt} Oyuncu</option>
+              `).join("")}
+            </select>
+          </label>
+          <label>Draft Sırası:
+            <select onchange="S.format=this.value">
+              <option value="snake" ${S.format === "snake" ? "selected" : ""}>Yılan (Her tur döner)</option>
+              <option value="linear" ${S.format === "linear" ? "selected" : ""}>Doğrusal (Sabit sıra)</option>
+            </select>
+          </label>
+        </div>
+      `}
       <div class="row" style="margin-top:16px">
         <button class="pri" onclick="proceedFromSetup()">
           Devam Et: Lig & Takım Seç →
         </button>
-        <button onclick="quickDraftAndSim()">Hızlı Kadro Kur & Takım Kimliğine Geç</button>
-        <button onclick="toggleOnlineModal()">Online Oda Kur / Katıl</button>
+        ${!m.career ? `<button onclick="toggleOnlineModal()">Online Oda Kur / Katıl</button>` : ""}
       </div>
       ${S.err ? `<p class="err">${S.err}</p>` : ""}
     </div>
   `;
 }
 
-// 2. Ekran: Lig Seçici ve Takım Seçimi
+// 2. Ekran: Lig Seçici, Güncel Takımlar ve Ayrı İkonik Takımlar Bölümü
 function renderClubSelectScreen() {
   const m = currentMode();
+  const isCareer = !!m.career;
   const showClubChips = m.clubs !== "none";
-  const activeClubs = CLUBS.filter(c => S.leagues.has(CLUB_TO_LEAGUE[c] || "Diğer Takımlar") || !CLUB_TO_LEAGUE[c]);
-  const activePlayerCount = P.filter(p => S.leagues.has(p.lg)).length;
+  const leaguesToShow = isCareer
+    ? LEAGUES_META.filter(lg => lg.id !== "İkonik Takımlar")
+    : LEAGUES_META;
+
+  const activeClubs = CLUBS.filter(c => S.leagues.has(CLUB_TO_LEAGUE[c] || "Diğer Takımlar"));
+  const activePlayerCount = P.filter(p => S.leagues.has(p.lg) && (!S.clubs.size || S.clubs.has(p.c))).length;
   const selectedCount = S.clubs.size;
+  const modernLeaguesSelected = [...S.leagues].filter(l => l !== "İkonik Takımlar");
 
   app.innerHTML = hdr() + renderOnlineModal() + `
     <div class="panel" style="margin-top:0">
       <div class="panel-head">
         <div>
-          <span class="eyebrow">Adım 2 / 2 · Lig & Kulüp Seçimi</span>
-          <h2>Ligleri (${S.leagues.size} Lig · ${activePlayerCount} Oyuncu) ve Takımları Belirle</h2>
+          <span class="eyebrow">Adım 2 / 2 · Lig & Kulüp Havuzu</span>
+          <h2>Ligleri (${S.leagues.size} Lig · ${activePlayerCount} Aktif Oyuncu) ve Takımları Belirle</h2>
         </div>
         <div class="row">
           <button onclick="S.view='setup';S.err='';render()">← Mod & Ayarlara Dön</button>
@@ -385,12 +459,13 @@ function renderClubSelectScreen() {
       </div>
 
       <div class="row" style="margin-bottom:12px">
-        <button class="sm ${S.leagues.size === LEAGUES.length ? 'pri' : ''}" onclick="selectAllLeagues()">Tüm Ligler (9)</button>
+        <button class="sm ${S.leagues.size === leaguesToShow.length ? 'pri' : ''}" onclick="selectAllLeagues()">Tüm Ligler (${leaguesToShow.length})</button>
         <button class="sm" onclick="selectTop5Leagues()">5 Büyük Lig</button>
+        ${!isCareer ? `<button class="sm gold" onclick="selectOnlyIconicClubs()">Sadece İkonik Efsaneler (18 Kadro · 299 Oyuncu)</button>` : ""}
       </div>
 
       <div class="league-grid" style="margin-bottom:18px">
-        ${LEAGUES_META.map(lg => {
+        ${leaguesToShow.map(lg => {
           const lgPlayers = P.filter(p => p.lg === lg.id);
           const lgClubs = [...new Set(lgPlayers.map(p => p.c))];
           const isSel = S.leagues.has(lg.id);
@@ -415,11 +490,11 @@ function renderClubSelectScreen() {
         <div style="border-top:1px solid var(--border);padding-top:14px">
           <div class="panel-head">
             <div>
-              <h2>Takım Seçimi</h2>
+              <h2>Güncel Kulüpler (2026-27)</h2>
               <p class="muted" style="margin:2px 0 0;font-size:.82rem">
                 ${m.clubs === "required"
                   ? "Kulüp Draftı modundasın: En az 2 takım seçmelisin."
-                  : `Seçili takım: <b>${selectedCount || "Tümü (" + activeClubs.length + ")"}</b>. Hiç takım işaretlemezsen seçili liglerdeki tüm takımlar (${activeClubs.length} kulüp) dahil edilir.`}
+                  : `Seçili takım: <b>${selectedCount || "Tümü (" + activeClubs.length + ")"}</b>. Hiç takım işaretlemezsen seçili liglerdeki tüm takımlar dahil edilir.`}
               </p>
             </div>
             <div class="row">
@@ -431,8 +506,8 @@ function renderClubSelectScreen() {
             </div>
           </div>
 
-          ${[...S.leagues].map(lgName => {
-            const clubsOfLg = activeClubs.filter(c => (CLUB_TO_LEAGUE[c] || "Diğer Takımlar") === lgName);
+          ${modernLeaguesSelected.map(lgName => {
+            const clubsOfLg = CLUBS.filter(c => (CLUB_TO_LEAGUE[c] || "Diğer Takımlar") === lgName);
             if (!clubsOfLg.length) return "";
             return `
               <div style="margin-top:14px">
@@ -447,6 +522,30 @@ function renderClubSelectScreen() {
             `;
           }).join("")}
         </div>
+
+        ${!isCareer ? `
+          <div style="margin-top:22px;padding:16px;background:rgba(234,179,8,0.06);border:1px solid rgba(234,179,8,0.35);border-radius:var(--r)">
+            <div class="panel-head" style="margin-bottom:10px">
+              <div>
+                <span class="eyebrow" style="color:var(--t-elite);border-color:rgba(234,179,8,0.4);background:rgba(234,179,8,0.12)">Efsaneler Havuzu · 18 İkonik Kadro · 299 Oyuncu</span>
+                <h2 style="color:var(--t-elite)">İkonik Takımlar (1999 – 2020)</h2>
+                <p class="muted" style="margin:2px 0 0;font-size:.82rem">
+                  Futbol tarihine damga vurmuş efsane sezon kadrolarını draft havuzuna dahil et. Herhangi bir ikonik takıma tıkladığında otomatik olarak havuza eklenir.
+                </p>
+              </div>
+              <div class="row">
+                <button class="sm gold" onclick="selectOnlyIconicClubs()">Sadece İkonik Takımlarla Oyna (18)</button>
+                <button class="sm" onclick="selectAllIconicClubs()">Tüm İkonikleri Havuza Ekle (18)</button>
+              </div>
+            </div>
+            <div class="chips">
+              ${ICONIC_CLUBS.map(c => {
+                const esc = c.replace(/'/g, "\\'");
+                return `<button class="chip" aria-pressed="${S.clubs.has(c)}" onclick="toggleIconicClub('${esc}')">${clubLogo(c, 22)} <span>${c}</span></button>`;
+              }).join("")}
+            </div>
+          </div>
+        ` : ""}
       ` : ""}
 
       <div class="row" style="margin-top:20px;justify-content:space-between;border-top:1px solid var(--border);padding-top:14px">
@@ -459,7 +558,21 @@ function renderClubSelectScreen() {
 
 function toggleClub(c) {
   if (S.clubs.has(c)) S.clubs.delete(c);
-  else S.clubs.add(c);
+  else {
+    const lg = CLUB_TO_LEAGUE[c];
+    if (lg) S.leagues.add(lg);
+    S.clubs.add(c);
+  }
+  render();
+}
+
+function toggleIconicClub(c) {
+  if (S.clubs.has(c)) {
+    S.clubs.delete(c);
+  } else {
+    S.leagues.add("İkonik Takımlar");
+    S.clubs.add(c);
+  }
   render();
 }
 
@@ -482,7 +595,7 @@ function selectSuperLigFour() {
 }
 
 function selectEuropeanGiants() {
-  S.leagues = new Set(LEAGUES);
+  S.leagues = new Set(MODERN_LEAGUES);
   S.clubs = new Set([
     "Manchester City", "Arsenal", "Liverpool", "Chelsea",
     "Real Madrid", "Barcelona", "Atletico Madrid",
@@ -494,7 +607,7 @@ function selectEuropeanGiants() {
   render();
 }
 
-// 7. DRAFT MOTORU VE ÇEŞİTLİ CPU SEÇİMLERİ
+// 7. DRAFT MOTORU VE ÇARK / ÇEŞİTLİ CPU SEÇİMLERİ
 function posCountsOf(team) {
   const counts = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
   team.picks.forEach(p => {
@@ -633,6 +746,13 @@ function isMyTurnNow() {
 
 function buildDraftState() {
   const m = currentMode();
+  // Eğer kulüp işaretlenmişse ilgili kulüplerin liglerini de otomatik aktif et
+  if (S.clubs.size) {
+    S.clubs.forEach(c => {
+      const lg = CLUB_TO_LEAGUE[c];
+      if (lg) S.leagues.add(lg);
+    });
+  }
   let pool = P.filter(p => S.leagues.has(p.lg));
   if (m.clubs !== "none" && S.clubs.size) {
     pool = pool.filter(p => S.clubs.has(p.c));
@@ -641,7 +761,7 @@ function buildDraftState() {
     S.err = "Kulüp Draftı için en az 2 kulüp seçmelisin.";
     return null;
   }
-  const n = S.opp + 1;
+  const n = m.career ? 1 : (S.opp + 1);
   if (pool.length < n * ROUNDS) {
     S.err = `Seçili havuzda 14 kişilik (11 Asil + 3 Yedek) kadrolar için yeterli oyuncu yok (${pool.length} mevcut, en az ${n * ROUNDS} gerekli). Daha fazla kulüp veya lig seçin.`;
     return null;
@@ -676,7 +796,7 @@ function buildDraftState() {
     { c1: "#3b0764", c2: "#f472b6", shape: "diamond" }
   ];
 
-  const effectiveHumans = NET.connected ? 2 : S.humanCount;
+  const effectiveHumans = m.career ? 1 : (NET.connected ? 2 : S.humanCount);
   const teams = [];
   for (let i = 0; i < n; i++) {
     const isHuman = i < effectiveHumans;
@@ -686,7 +806,7 @@ function buildDraftState() {
       else if (i === 1) tName = "2. Oyuncu";
       else tName = cpuNames[i - 1] || ("CPU " + i);
     } else {
-      tName = isHuman ? `${i + 1}. Oyuncu` : `${cpuNames[i - 1] || ("CPU " + i)}`;
+      tName = isHuman ? (m.career ? "Senin Kulübün" : `${i + 1}. Oyuncu`) : `${cpuNames[i - 1] || ("CPU " + i)}`;
     }
 
     const isMeLocal = NET.connected ? (i === NET.myTeamIdx) : isHuman;
@@ -738,6 +858,7 @@ function startDraft() {
   S.err = "";
   G = state;
   T = null;
+  LG = null;
   NET.readyMap = { 0: false, 1: false };
   F = { q: "", lg: "", c: "", p: "" };
   S.onlineModal = false;
@@ -759,17 +880,6 @@ function startDraft() {
 
   render();
   cpuLoop();
-}
-
-function quickDraftAndSim() {
-  const state = buildDraftState();
-  if (!state) return render();
-  S.err = "";
-  G = state;
-  T = null;
-  autoCompleteDraft(true);
-  S.view = "identity";
-  render();
 }
 
 function applyPickDirectly(id, isCpu = false) {
@@ -794,7 +904,7 @@ function applyPickDirectly(id, isCpu = false) {
     G.teams.forEach(ensureTeamLineup);
     SWAP.teamIdx = NET.connected ? NET.myTeamIdx : 0;
     ID_EDIT.teamIdx = NET.connected ? NET.myTeamIdx : 0;
-    initTournament();
+    if (!G.m.career) initTournament();
     S.view = "identity";
     render();
   } else {
@@ -852,7 +962,19 @@ function chooseCpuPlayer(t) {
   }
   if (!av.length) return null;
 
-  if (G.m.cpu === "random" || G.m.id === "wheel") {
+  if (G.m.id === "wheel") {
+    const clubs = getWheelClubsForTurn(t);
+    const landedClub = clubs[(Math.random() * clubs.length) | 0];
+    const clubValid = av.filter(p => p.c === landedClub);
+    if (clubValid.length) {
+      const shuffled = clubValid.slice().sort(() => Math.random() - 0.5).slice(0, 2);
+      shuffled.sort((a, b) => b.r - a.r);
+      return shuffled[0];
+    }
+    return av[(Math.random() * av.length) | 0];
+  }
+
+  if (G.m.cpu === "random") {
     return av[(Math.random() * av.length) | 0];
   }
 
@@ -896,6 +1018,16 @@ function cpuLoop() {
   const t = G.teams[G.order[G.k]];
   if (t.isHuman) return;
   if (NET.connected && NET.role === "guest") return;
+
+  if (G.m.id === "wheel") {
+    cpuTimer = setTimeout(() => {
+      if (!G || G.k >= G.order.length || W.spinning) return;
+      const currTeam = G.teams[G.order[G.k]];
+      if (currTeam.isHuman) return;
+      spinClubWheel(false, true);
+    }, 320);
+    return;
+  }
 
   cpuTimer = setTimeout(() => {
     if (!G || G.k >= G.order.length) return;
@@ -960,7 +1092,7 @@ function autoCompleteDraft(silent = false) {
   G.teams.forEach(ensureTeamLineup);
   SWAP.teamIdx = NET.connected ? NET.myTeamIdx : 0;
   ID_EDIT.teamIdx = NET.connected ? NET.myTeamIdx : 0;
-  initTournament();
+  if (!G.m.career) initTournament();
   if (NET.connected && NET.role === "host") {
     sendNetMsg({
       type: "AUTO_COMPLETE_SYNC",
@@ -980,7 +1112,7 @@ function getWheelClubsForTurn(t) {
 
 function drawWheelCanvas() {
   const cv = $("#wheel-cv");
-  if (!cv || !G) return;
+  if (!cv || !G || G.k >= G.order.length) return;
   const ctx = cv.getContext("2d");
   const t = G.teams[G.order[G.k]];
   const clubs = getWheelClubsForTurn(t);
@@ -1030,10 +1162,12 @@ function drawWheelCanvas() {
   ctx.fillText("ÇARK", cx, cy + 3.5);
 }
 
-function spinClubWheel(useJoker = false) {
-  if (!G || W.spinning || !isMyTurnNow()) return;
+function spinClubWheel(useJoker = false, isCpuSpin = false) {
+  if (!G || W.spinning) return;
+  if (!isCpuSpin && !isMyTurnNow()) return;
+
   const t = G.teams[G.order[G.k]];
-  if (useJoker) {
+  if (useJoker && !isCpuSpin) {
     if (W.jokers <= 0) return;
     W.jokers--;
   }
@@ -1046,9 +1180,9 @@ function spinClubWheel(useJoker = false) {
   W.offeredPlayers = [];
   render();
 
-  const totalSpin = Math.PI * 2 * (5 + Math.random() * 4);
+  const totalSpin = Math.PI * 2 * (4.5 + Math.random() * 3.5);
   const startAngle = W.angle;
-  const duration = 1750;
+  const duration = isCpuSpin ? 950 : 1650;
   const t0 = performance.now();
 
   function frame(now) {
@@ -1082,6 +1216,14 @@ function spinClubWheel(useJoker = false) {
         });
       }
       render();
+
+      if (isCpuSpin && W.offeredPlayers.length) {
+        cpuTimer = setTimeout(() => {
+          if (!G || G.k >= G.order.length) return;
+          const bestOfOffered = [...W.offeredPlayers].sort((a, b) => b.r - a.r)[0];
+          if (bestOfOffered) pick(bestOfOffered.id, true);
+        }, 620);
+      }
     }
   }
   requestAnimationFrame(frame);
@@ -1195,17 +1337,17 @@ function renderWheelSection(t) {
       <div class="wheel-result-card">
         <div class="panel-head" style="margin-bottom:8px">
           <div>
-            <h2>Takım & Oyuncu Çarkı</h2>
+            <h2>Takım & Oyuncu Çarkı (${t.name})</h2>
             <p class="muted" style="margin:2px 0 0;font-size:.82rem">
-              Çarkı çevirerek gelen kulübün oyuncusunu kadrona kat. (Kalan Tekrar Çevirme Hakkı: <b>${W.jokers}</b>)
+              Hem sen hem de rakip çarkı çevirerek gelen kulübün oyuncusunu kadrosuna katar. (Kalan Tekrar Çevirme Hakkın: <b>${W.jokers}</b>)
             </p>
           </div>
           <div class="row">
-            <button class="pri" ${!myTurn || W.spinning || W.selectedClub ? "disabled" : ""} onclick="spinClubWheel(false)">
+            <button class="pri" ${!myTurn || W.spinning || W.selectedClub ? "disabled" : ""} onclick="spinClubWheel(false, false)">
               Çarkı Çevir
             </button>
             ${W.selectedClub && W.jokers > 0 && myTurn ? `
-              <button class="sm" ${W.spinning ? "disabled" : ""} onclick="spinClubWheel(true)">
+              <button class="sm" ${W.spinning ? "disabled" : ""} onclick="spinClubWheel(true, false)">
                 Tekrar Çevir (${W.jokers})
               </button>
             ` : ""}
@@ -1231,7 +1373,7 @@ function renderWheelSection(t) {
           </div>
         ` : `
           <div class="muted" style="padding:8px 0">
-            ${W.spinning ? "Çark dönüyor..." : (myTurn ? "Sıradaki oyuncunu belirlemek için Çarkı Çevir butonuna tıkla." : `${t.name} çarkı çeviriyor...`)}
+            ${W.spinning ? `${t.name} için çark dönüyor...` : (myTurn ? "Sıradaki oyuncunu belirlemek için Çarkı Çevir butonuna tıkla." : `${t.name} çarkı çeviriyor...`)}
           </div>
         `}
       </div>
@@ -1329,7 +1471,7 @@ function renderDraft() {
   }
 }
 
-// 9.5 DRAFT BİTİMİ: TAKIM İSMİ VE LOGO / ARMA BELİRLEME EKRANI (Her İki Oyuncu İçin)
+// 9.5 DRAFT BİTİMİ: TAKIM İSMİ VE LOGO / ARMA BELİRLEME EKRANI
 function syncTeamIdentity(teamIdx) {
   if (!NET.connected || !G || !G.teams[teamIdx]) return;
   const tm = G.teams[teamIdx];
@@ -1346,8 +1488,6 @@ function updateTeamIdentityName(teamIdx, newName) {
   const tm = G.teams[teamIdx];
   if (!tm) return;
   tm.name = newName.trim() || `${teamIdx + 1}. Oyuncu`;
-  const previewName = $("#id-preview-name");
-  if (previewName) previewName.textContent = tm.name;
   const previewBadge = $("#id-preview-badge");
   if (previewBadge) previewBadge.innerHTML = renderTeamIdentityBadge(tm, 64);
   syncTeamIdentity(teamIdx);
@@ -1394,12 +1534,16 @@ function confirmTeamIdentity(teamIdx) {
   tm.identityDone = true;
   syncTeamIdentity(teamIdx);
 
+  if (G.m.career) {
+    S.view = "result";
+    return render();
+  }
+
   if (NET.connected) {
     S.view = "result";
     return render();
   }
 
-  // Aynı cihazda birden fazla insan oyuncu varsa sıradaki insan oyuncunun takım kimliği ekranına geç
   const nextHumanIdx = G.teams.findIndex((x, idx) => idx > teamIdx && x.isHuman && !x.identityDone);
   if (nextHumanIdx >= 0) {
     ID_EDIT.teamIdx = nextHumanIdx;
@@ -1420,22 +1564,18 @@ function renderIdentityScreen() {
     <section class="hero">
       <span class="eyebrow">Draft Tamamlandı · Takım Kimliği & Logo</span>
       <h1>Takımının İsmini ve Logosunu Oluştur</h1>
-      <p>Kadro seçimleri tamamlandı. Sahaya çıkmadan önce takımının adını belirle; ister renk ve arma şekli seçerek kendi özel kulüp armanı tasarla, ister 46 gerçek kulüp logosundan birini seç.</p>
+      <p>Kadro seçimleri tamamlandı. Sahaya çıkmadan önce takımının adını belirle; ister renk ve arma şekli seçerek kendi özel kulüp armanı tasarla, ister gerçek kulüp logolarından birini seç.</p>
     </section>
 
     <div class="panel">
       <div class="panel-head">
         <div class="row">
           <h2>Takım Kimliği Düzenleyici</h2>
-          ${!NET.connected ? G.teams.map((tItem, idx) => `
+          ${!NET.connected && G.teams.length > 1 ? G.teams.map((tItem, idx) => `
             <button class="sm ${activeIdx === idx ? 'pri' : ''}" onclick="ID_EDIT.teamIdx=${idx};render()">
               ${renderTeamIdentityBadge(tItem, 16)} ${tItem.name}
             </button>
-          `).join("") : `
-            <span class="stat-pill">
-              1. Oyuncu: <b>${G.teams[0].name}</b> · 2. Oyuncu: <b>${G.teams[1] ? G.teams[1].name : ''}</b>
-            </span>
-          `}
+          `).join("") : ""}
         </div>
         <button class="pri" onclick="confirmTeamIdentity(${activeIdx})">
           Kaydet & Kadro Dizilişine Geç →
@@ -1521,13 +1661,57 @@ function renderIdentityScreen() {
   `;
 }
 
-// 10. SABİT SLOTLU İLK 11 & 3 YEDEK KADRO DİZİLİŞİ YÖNETİMİ
+// 10. SABİT SLOTLU İLK 11 & 3 YEDEK KADRO DİZİLİŞİ YÖNETİMİ (MEVKİ DIŞI -10 REYTİNG CEZASI & SAKATLIK KORUMASI)
 function getFormationDef(formName) {
   return FORMATIONS[formName] || FORMATIONS["4-3-3"];
 }
 
+function isPlayerInjuredInCareer(playerId) {
+  return !!(G && G.m.career && LG && LG.injuries && LG.injuries[playerId] > 0);
+}
+
+function getEffectivePlayerRating(p, slotPos) {
+  if (!p) return 70;
+  const baseR = p.r || 75;
+  if (slotPos && p.pos !== slotPos) {
+    return Math.max(40, baseR - 10);
+  }
+  return baseR;
+}
+
+function getStarterSlotPosMap(formName = "4-3-3") {
+  const fDef = getFormationDef(formName);
+  const slotPositions = [];
+  fDef.rows.forEach(rDef => {
+    for (let i = 0; i < rDef.count; i++) slotPositions.push(rDef.pos);
+  });
+  return slotPositions;
+}
+
+function enforceHealthyStartersForTeam(t) {
+  if (!G || !G.m.career || !LG || !LG.injuries || !t || !t.me) return;
+  if (!t.starters || !t.bench) return;
+  for (let i = 0; i < t.starters.length; i++) {
+    const sp = t.starters[i];
+    if (sp && LG.injuries[sp.id] > 0) {
+      const slotPositions = getStarterSlotPosMap(t.formation || "4-3-3");
+      const targetPos = slotPositions[i] || sp.pos;
+      let bIdx = t.bench.findIndex(bp => bp && !LG.injuries[bp.id] && bp.pos === targetPos);
+      if (bIdx < 0) {
+        bIdx = t.bench.findIndex(bp => bp && !LG.injuries[bp.id]);
+      }
+      if (bIdx >= 0) {
+        const healthySub = t.bench[bIdx];
+        t.starters[i] = healthySub;
+        t.bench[bIdx] = sp;
+      }
+    }
+  }
+}
+
 function ensureTeamLineup(t) {
   if (t.starters && t.starters.length === STARTERS_COUNT && t.bench && t.bench.length === t.picks.length - STARTERS_COUNT) {
+    if (t.me) enforceHealthyStartersForTeam(t);
     return;
   }
   autoBuildLineupForTeam(t, t.formation || "4-3-3");
@@ -1536,18 +1720,29 @@ function ensureTeamLineup(t) {
 function autoBuildLineupForTeam(t, formName = "4-3-3") {
   t.formation = formName;
   const fDef = getFormationDef(formName);
-  const sorted = [...t.picks].sort((a, b) => b.r - a.r);
+  const checkInj = !!(G && G.m.career && LG && LG.injuries && t.me);
+  const sorted = [...t.picks].sort((a, b) => {
+    if (checkInj) {
+      const injA = LG.injuries[a.id] > 0 ? 1 : 0;
+      const injB = LG.injuries[b.id] > 0 ? 1 : 0;
+      if (injA !== injB) return injA - injB;
+    }
+    return b.r - a.r;
+  });
   const used = new Set();
 
   const rowBuckets = fDef.rows.map(rDef => {
-    const matched = sorted.filter(p => p.pos === rDef.pos && !used.has(p.id)).slice(0, rDef.count);
+    const matched = sorted
+      .filter(p => p.pos === rDef.pos && !used.has(p.id) && (!checkInj || !LG.injuries[p.id]))
+      .slice(0, rDef.count);
     matched.forEach(p => used.add(p.id));
     return { count: rDef.count, players: matched };
   });
 
   rowBuckets.forEach(b => {
     while (b.players.length < b.count) {
-      const nextP = sorted.find(p => !used.has(p.id));
+      let nextP = sorted.find(p => !used.has(p.id) && (!checkInj || !LG.injuries[p.id]));
+      if (!nextP) nextP = sorted.find(p => !used.has(p.id));
       if (!nextP) break;
       used.add(nextP.id);
       b.players.push(nextP);
@@ -1582,16 +1777,26 @@ function markMyLineupReady() {
 
 function selectSwapPlayer(teamIdx, playerId) {
   if (NET.connected && teamIdx !== NET.myTeamIdx) return;
+  SWAP.err = "";
+  const t = G.teams[teamIdx];
+  ensureTeamLineup(t);
+
+  // Eğer ilk tıklanan oyuncu yedekte ve sakatsa doğrudan uyarı ver
   if (SWAP.teamIdx !== teamIdx || SWAP.selectedId == null) {
-    SWAP = { teamIdx, selectedId: playerId };
+    if (t.me && isPlayerInjuredInCareer(playerId)) {
+      const pObj = P[playerId] || t.picks.find(x => x.id === playerId);
+      const wLeft = LG.injuries[playerId];
+      SWAP.err = `Sakatlık Engeli: ${pObj ? pObj.n : "Oyuncu"} şu an sakat (${wLeft} hafta kaldı). İyileşene kadar İlk 11'e alınamaz!`;
+      return render();
+    }
+    SWAP = { teamIdx, selectedId: playerId, err: "" };
     return render();
   }
   if (SWAP.selectedId === playerId) {
     SWAP.selectedId = null;
     return render();
   }
-  const t = G.teams[teamIdx];
-  ensureTeamLineup(t);
+
   const id1 = SWAP.selectedId;
   const id2 = playerId;
 
@@ -1599,6 +1804,16 @@ function selectSwapPlayer(teamIdx, playerId) {
   const sIdx2 = t.starters.findIndex(p => p.id === id2);
   const bIdx1 = t.bench.findIndex(p => p.id === id1);
   const bIdx2 = t.bench.findIndex(p => p.id === id2);
+
+  // Sakat oyuncunun yedekten İlk 11'e alınmasını engelle
+  if (t.me && ((sIdx1 >= 0 && bIdx2 >= 0 && isPlayerInjuredInCareer(id2)) || (bIdx1 >= 0 && sIdx2 >= 0 && isPlayerInjuredInCareer(id1)))) {
+    const injId = isPlayerInjuredInCareer(id1) ? id1 : id2;
+    const pObj = P[injId] || t.picks.find(x => x.id === injId);
+    const wLeft = LG.injuries[injId];
+    SWAP.selectedId = null;
+    SWAP.err = `Sakatlık Engeli: ${pObj ? pObj.n : "Oyuncu"} sakat olduğu için (${wLeft} hafta) İlk 11 kadrosuna koyulamaz!`;
+    return render();
+  }
 
   if (sIdx1 >= 0 && bIdx2 >= 0) {
     const temp = t.starters[sIdx1];
@@ -1628,6 +1843,7 @@ function changeFormation(teamIdx, formName) {
   const t = G.teams[teamIdx];
   autoBuildLineupForTeam(t, formName);
   SWAP.selectedId = null;
+  SWAP.err = "";
   broadcastMyLineup(teamIdx, NET.readyMap[teamIdx]);
   render();
 }
@@ -1652,7 +1868,10 @@ function groupStartersForPitch(t) {
   const rows = buildPitchRowsForTeam(t);
   const L = { GK: [], DEF: [], MID: [], FWD: [] };
   rows.forEach(r => {
-    L[r.pos].push(...r.players);
+    r.players.forEach(p => {
+      const effR = getEffectivePlayerRating(p, r.pos);
+      L[r.pos].push({ ...p, effR, outOfPos: p.pos !== r.pos, slotPos: r.pos });
+    });
   });
   return L;
 }
@@ -1662,33 +1881,44 @@ function renderResult() {
   const activeTeamIdx = NET.connected ? NET.myTeamIdx : (SWAP.teamIdx < G.teams.length ? SWAP.teamIdx : 0);
   const myTeam = G.teams[activeTeamIdx];
   const pitchRows = buildPitchRowsForTeam(myTeam);
+  const slotPositions = getStarterSlotPosMap(myTeam.formation || "4-3-3");
   const isTourney = G.teams.length > 2;
+  const isCareer = !!G.m.career;
+  const injuredMap = (LG && LG.injuries) ? LG.injuries : {};
 
   app.innerHTML = hdr() + renderOnlineModal() + `
     <section class="hero">
       <span class="eyebrow">Kadro & Diziliş</span>
       <h1>İlk 11 ve 3 Yedek Oyuncunu Belirle</h1>
-      <p>Sahadaki veya yedek kulübesindeki herhangi iki oyuncuya tıklayarak doğrudan yerlerini değiştirebilirsin.</p>
+      <p>Sahadaki veya yedek kulübesindeki herhangi iki oyuncuya tıklayarak yerlerini değiştirebilirsin. <b>Not:</b> Kendi mevkisi dışında oynatılan oyuncular maç motorunda <b>-10 reyting cezası</b> alır.</p>
       <div class="row" style="margin-top:14px">
         ${NET.connected ? `
           <button class="${NET.readyMap[NET.myTeamIdx] ? 'gold' : 'pri'}" onclick="markMyLineupReady()">
             ${NET.readyMap[NET.myTeamIdx] ? "Kadron Hazır" : "Kadromu Onayla"}
           </button>
         ` : ""}
-        <button class="pri" ${NET.connected && NET.role === "guest" ? "disabled" : ""} onclick="goMatchDirect()">
-          ${isTourney ? "Turnuva Eşleşmelerine Geç" : "90 Dk Maç Simülasyonuna Geç"}
-        </button>
+        ${isCareer ? `
+          <button class="pri" onclick="goMatchDirect()">
+            ${LG ? "Premier Lig Merkezine Dön →" : "Lig Seçimine Geç (Premier Lig) →"}
+          </button>
+        ` : `
+          <button class="pri" ${NET.connected && NET.role === "guest" ? "disabled" : ""} onclick="goMatchDirect()">
+            ${isTourney ? "Turnuva Eşleşmelerine Geç" : "90 Dk Maç Simülasyonuna Geç"}
+          </button>
+        `}
         <button onclick="S.view='identity';render()">Takım İsmi & Logosunu Düzenle</button>
         <button onclick="startDraft()">Yeni Draft</button>
       </div>
     </section>
 
+    ${SWAP.err ? `<div class="err">${SWAP.err}</div>` : ""}
+
     <div class="panel">
       <div class="panel-head">
         <div class="row">
           <h2 class="club-cell">${renderTeamIdentityBadge(myTeam, 26)} <span>Taktik Tahtası (${myTeam.name})</span></h2>
-          ${!NET.connected ? G.teams.map((tm, idx) => `
-            <button class="sm ${activeTeamIdx === idx ? 'pri' : ''}" onclick="SWAP.teamIdx=${idx};SWAP.selectedId=null;render()">
+          ${!NET.connected && G.teams.length > 1 ? G.teams.map((tm, idx) => `
+            <button class="sm ${activeTeamIdx === idx ? 'pri' : ''}" onclick="SWAP.teamIdx=${idx};SWAP.selectedId=null;SWAP.err='';render()">
               ${renderTeamIdentityBadge(tm, 16)} ${tm.name}
             </button>
           `).join("") : ""}
@@ -1710,10 +1940,13 @@ function renderResult() {
               <div class="pl-row">
                 ${row.players.map(p => {
                   const isSel = SWAP.selectedId === p.id;
+                  const injW = injuredMap[p.id] || 0;
+                  const outOfPos = p.pos !== row.pos;
                   return `
-                    <div class="pl clickable-pl ${isSel ? 'selected-swap' : ''}" onclick="selectSwapPlayer(${activeTeamIdx}, ${p.id})" title="${p.n} (${row.label})">
+                    <div class="pl clickable-pl ${isSel ? 'selected-swap' : ''} ${(injW || outOfPos) ? 'red-carded' : ''}" onclick="selectSwapPlayer(${activeTeamIdx}, ${p.id})" title="${p.n} (${row.label}${outOfPos ? ' · Mevki Dışı -10 Rtg' : ''})">
                       <div class="row" style="gap:3px">${clubLogo(p.c, 16)} ${posTag(p.pos)}</div>
                       <small>${p.n.split(" ").pop()}</small>
+                      ${injW ? `<div class="pl-events"><span class="ev-badge ev-red">SAKAT (${injW}H)</span></div>` : (outOfPos ? `<div class="pl-events"><span class="ev-badge ev-red" title="Mevki Dışı: -10 Reyting">${POS_SHORT[row.pos]} (-10)</span></div>` : "")}
                     </div>
                   `;
                 }).join("")}
@@ -1727,15 +1960,17 @@ function renderResult() {
           <div class="bench-list">
             ${myTeam.bench.map(p => {
               const isSel = SWAP.selectedId === p.id;
+              const injW = injuredMap[p.id] || 0;
               return `
-                <div class="bench-item ${isSel ? 'selected-swap' : ''}" onclick="selectSwapPlayer(${activeTeamIdx}, ${p.id})">
+                <div class="bench-item ${isSel ? 'selected-swap' : ''}" style="${injW ? 'opacity:0.65;cursor:not-allowed' : ''}" onclick="selectSwapPlayer(${activeTeamIdx}, ${p.id})">
                   <span class="club-cell">
                     ${posTag(p.pos)}
                     ${clubLogo(p.c, 20)}
                     <b>${p.n}</b>
                     <span class="muted" style="font-size:.8rem">(${p.c})</span>
+                    ${injW ? `<span class="pos-badge pos-FWD">Sakat (${injW}H · Oynayamaz)</span>` : ""}
                   </span>
-                  <button class="sm ${isSel ? 'gold' : ''}">${isSel ? "Seçildi" : "Değiştir"}</button>
+                  <button class="sm ${isSel ? 'gold' : ''}" ${injW ? "disabled" : ""}>${injW ? "Sakat" : (isSel ? "Seçildi" : "Değiştir")}</button>
                 </div>
               `;
             }).join("")}
@@ -1744,12 +1979,21 @@ function renderResult() {
           <h3 style="margin:18px 0 8px">İlk 11 Listesi</h3>
           <div class="sq" style="margin-bottom:0">
             <ol>
-              ${myTeam.starters.map(p => {
+              ${myTeam.starters.map((p, sIdx) => {
                 const isSel = SWAP.selectedId === p.id;
+                const injW = injuredMap[p.id] || 0;
+                const reqPos = slotPositions[sIdx] || p.pos;
+                const outOfPos = p.pos !== reqPos;
                 return `
                   <li style="cursor:pointer;${isSel ? 'color:var(--t-elite);font-weight:700' : ''}" onclick="selectSwapPlayer(${activeTeamIdx}, ${p.id})">
-                    <span class="club-cell">${posTag(p.pos)} ${clubLogo(p.c, 16)} <b>${p.n}</b> <span class="muted">${p.c}</span></span>
-                    <span class="muted" style="font-size:.77rem">${isSel ? "Seçildi" : "İlk 11"}</span>
+                    <span class="club-cell">
+                      ${posTag(p.pos)}
+                      ${clubLogo(p.c, 16)}
+                      <b>${p.n}</b>
+                      <span class="muted">${p.c}</span>
+                      ${outOfPos ? `<span class="pos-badge pos-FWD" title="Bu slot ${POS_SHORT[reqPos]} mevkisidir. Oyuncu -10 reyting cezası alır.">Mevki Dışı (-10)</span>` : ""}
+                    </span>
+                    <span class="muted" style="font-size:.77rem">${injW ? `Sakat (${injW}H)` : (isSel ? "Seçildi" : `${POS_SHORT[reqPos]} Slotu`)}</span>
                   </li>
                 `;
               }).join("")}
@@ -1761,10 +2005,1684 @@ function renderResult() {
   `;
 }
 
+// 10.5 TEK OYUNCULU LİG KARİYER MODU (PREMIER LİG 20 TAKIM, 19 HAFTA FİKSTÜR, GOL/ASİST KRALLIĞI VE 12 DETAYLI OLAY)
+function renderCareerLeagueSelector() {
+  const careerLeagues = [
+    { id: "Premier Lig", name: "Premier Lig", country: "İngiltere", teams: 20, active: true, note: "20 Takım Hazır · Oynanabilir" },
+    { id: "La Liga", name: "La Liga", country: "İspanya", teams: 3, active: false, note: "Sonra Gelecek (Yeterli Takım Yok)" },
+    { id: "Serie A", name: "Serie A", country: "İtalya", teams: 5, active: false, note: "Sonra Gelecek (Yeterli Takım Yok)" },
+    { id: "Bundesliga", name: "Bundesliga", country: "Almanya", teams: 4, active: false, note: "Sonra Gelecek (Yeterli Takım Yok)" },
+    { id: "Ligue 1", name: "Ligue 1", country: "Fransa", teams: 2, active: false, note: "Sonra Gelecek (Yeterli Takım Yok)" },
+    { id: "Trendyol Süper Lig", name: "Trendyol Süper Lig", country: "Türkiye", teams: 4, active: false, note: "Sonra Gelecek (Yeterli Takım Yok)" },
+    { id: "Liga Portugal", name: "Liga Portugal", country: "Portekiz", teams: 3, active: false, note: "Sonra Gelecek (Yeterli Takım Yok)" },
+    { id: "Eredivisie", name: "Eredivisie", country: "Hollanda", teams: 3, active: false, note: "Sonra Gelecek (Yeterli Takım Yok)" }
+  ];
+
+  const userTeam = G.teams[0];
+  app.innerHTML = hdr() + renderOnlineModal() + `
+    <section class="hero">
+      <span class="eyebrow">Lig Kariyer Modu · Lig Seçimi</span>
+      <h1 class="club-cell">${renderTeamIdentityBadge(userTeam, 42)} <span>${userTeam.name} ile Hangi Lige Katılacaksın?</span></h1>
+      <p>Bütçeli kadron hazır. Şimdi mücadele edeceğin 20 takımlı ligi seçerek 19 haftalık şampiyonluk maratonunu başlat.</p>
+    </section>
+
+    <div class="panel">
+      <h2>Katılınacak Ligi Seç</h2>
+      <div class="league-grid" style="margin-top:12px">
+        ${careerLeagues.map(cl => `
+          <div class="league-card" aria-pressed="${cl.active}" style="${cl.active ? '' : 'opacity:0.55;cursor:not-allowed'}" onclick="${cl.active ? "initCareerLeague('Premier Lig')" : ""}">
+            <div class="lg-title">
+              <span>${cl.name}</span>
+              <span style="font-size:.74rem;color:${cl.active ? 'var(--pri-bright)' : 'var(--t-elite)'}">${cl.active ? "Aktif" : "Yakında"}</span>
+            </div>
+            <div class="lg-meta">${cl.country} · ${cl.note}</div>
+            <div style="margin-top:8px">
+              ${cl.active
+                ? `<button class="sm pri" style="width:100%" onclick="event.stopPropagation();initCareerLeague('Premier Lig')">Premier Lig'e Katıl →</button>`
+                : `<button class="sm" disabled style="width:100%">Sonra Gelecek</button>`}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function buildClubTeamObject(clubName) {
+  const clubPlayers = [...P.filter(p => p.c === clubName)].sort((a, b) => b.r - a.r);
+  const usedIds = new Set();
+  const picks = [];
+
+  // İlk 11 için her mevkiden en yüksek reytingli oyuncuları seç (4-3-3: 1 GK, 4 DEF, 3 MID, 3 FWD)
+  const quotaOrder = [["GK", 1], ["DEF", 4], ["MID", 3], ["FWD", 3]];
+  for (const [posKey, cnt] of quotaOrder) {
+    const matching = clubPlayers.filter(p => p.pos === posKey && !usedIds.has(p.id)).slice(0, cnt);
+    matching.forEach(p => {
+      usedIds.add(p.id);
+      picks.push({ ...p });
+    });
+  }
+
+  // Kalan yedek slotlarını (14'e kadar) en yüksek reytingli kalan oyuncularla tamamla
+  for (const p of clubPlayers) {
+    if (picks.length >= 14) break;
+    if (!usedIds.has(p.id)) {
+      usedIds.add(p.id);
+      picks.push({ ...p });
+    }
+  }
+  while (picks.length < 14 && clubPlayers.length) {
+    picks.push({ ...clubPlayers[picks.length % clubPlayers.length] });
+  }
+
+  const tm = {
+    name: clubName,
+    me: 0,
+    isHuman: false,
+    identityDone: true,
+    customIdentity: { type: "club", club: clubName, shape: "shield", c1: "#166534", c2: "#eab308" },
+    picks,
+    starters: null,
+    bench: null,
+    formation: "4-3-3",
+    spent: 0
+  };
+  ensureTeamLineup(tm);
+  return tm;
+}
+
+function generateRoundRobinSchedule(numTeams) {
+  const teams = Array.from({ length: numTeams }, (_, i) => i);
+  const rounds = [];
+  const n = numTeams;
+  for (let r = 0; r < n - 1; r++) {
+    const matches = [];
+    for (let i = 0; i < n / 2; i++) {
+      const a = teams[i];
+      const b = teams[n - 1 - i];
+      if ((r + i) % 2 === 0) matches.push({ a, b, done: false, sc: null });
+      else matches.push({ a: b, b: a, done: false, sc: null });
+    }
+    rounds.push(matches);
+    const last = teams.pop();
+    teams.splice(1, 0, last);
+  }
+  return rounds;
+}
+
+function initCareerLeague(leagueName = "Premier Lig") {
+  const userTeam = G.teams[0];
+  ensureTeamLineup(userTeam);
+
+  const plClubs = CLUBS.filter(c => CLUB_TO_LEAGUE[c] === "Premier Lig");
+  const aiClubs = plClubs.filter(c => c !== userTeam.name).slice(0, 19);
+  const aiTeams = aiClubs.map(buildClubTeamObject);
+
+  G.teams = [userTeam, ...aiTeams];
+
+  const standings = G.teams.map((tm, idx) => ({
+    teamIdx: idx,
+    played: 0,
+    w: 0,
+    d: 0,
+    l: 0,
+    gf: 0,
+    ga: 0,
+    pts: 0
+  }));
+
+  LG = {
+    leagueName,
+    week: 1,
+    maxWeeks: 19,
+    viewWeek: 1,
+    schedule: generateRoundRobinSchedule(20),
+    standings,
+    playerStats: {},
+    injuries: {},
+    moraleMod: 0,
+    clubFunds: Math.max(15, (G.m.budget || 360) - userTeam.spent),
+    sponsorName: "Yok",
+    lastResult: null,
+    usedEventIds: new Set(),
+    usedNewsIds: new Set(),
+    activeEvent: null,
+    activeNews: null,
+    eventHistory: [],
+    newsFeed: [
+      {
+        week: 1,
+        source: "Premier Lig Medya Merkezi",
+        teamIdx: 0,
+        title: `2026-27 Premier Lig Sezonu Başlıyor!`,
+        body: `20 takımlı maratonda ${userTeam.name} yeni kurulan kadrosuyla şampiyonluk yarışına katılıyor. Otoriteler sezonun ilk haftalarındaki puan kayıplarının zirve yarışında belirleyici olacağını vurguluyor.`
+      }
+    ],
+    tab: "standings"
+  };
+
+  S.view = "league_hub";
+  render();
+}
+
+function recordLeagueGoalsAndAssists(teamIdx, sObj, goalsCount) {
+  const tm = G.teams[teamIdx];
+  if (!tm) return;
+  for (let g = 0; g < goalsCount; g++) {
+    const scorer = pickGoalscorer(sObj.L);
+    const assister = Math.random() < 0.78 ? pickAssister(sObj.L, scorer) : null;
+    if (scorer) {
+      const k = `${teamIdx}_${scorer.n}`;
+      if (!LG.playerStats[k]) LG.playerStats[k] = { name: scorer.n, teamIdx, teamName: tm.name, club: scorer.c, goals: 0, assists: 0 };
+      LG.playerStats[k].goals++;
+    }
+    if (assister) {
+      const kA = `${teamIdx}_${assister.n}`;
+      if (!LG.playerStats[kA]) LG.playerStats[kA] = { name: assister.n, teamIdx, teamName: tm.name, club: assister.c, goals: 0, assists: 0 };
+      LG.playerStats[kA].assists++;
+    }
+  }
+}
+
+function updateLeagueTableForMatch(aIdx, bIdx, goalsA, goalsB) {
+  const stA = LG.standings.find(x => x.teamIdx === aIdx);
+  const stB = LG.standings.find(x => x.teamIdx === bIdx);
+  if (!stA || !stB) return;
+
+  stA.played++;
+  stB.played++;
+  stA.gf += goalsA;
+  stA.ga += goalsB;
+  stB.gf += goalsB;
+  stB.ga += goalsA;
+
+  if (goalsA > goalsB) {
+    stA.w++;
+    stA.pts += 3;
+    stB.l++;
+  } else if (goalsB > goalsA) {
+    stB.w++;
+    stB.pts += 3;
+    stA.l++;
+  } else {
+    stA.d++;
+    stB.d++;
+    stA.pts += 1;
+    stB.pts += 1;
+  }
+}
+
+function simulateBackgroundLeagueMatch(mObj) {
+  if (mObj.done) return;
+  const tA = G.teams[mObj.a];
+  const tB = G.teams[mObj.b];
+  const sA = side(tA);
+  const sB = side(tB);
+
+  const rawDiff = sA.avg - sB.avg;
+  const compDiff = Math.max(-1.25, Math.min(1.25, rawDiff * 0.35));
+  const swing = (Math.random() - 0.5) * 3.6;
+  const adv = compDiff + swing;
+
+  let gA = 1, gB = 1;
+  if (Math.abs(adv) < 0.52) {
+    const draws = [[1, 1], [0, 0], [2, 2], [1, 1]];
+    const d = draws[(Math.random() * draws.length) | 0];
+    gA = d[0]; gB = d[1];
+  } else {
+    const winScores = [[2, 1], [1, 0], [2, 0], [3, 1], [3, 2], [2, 1]];
+    const w = winScores[(Math.random() * winScores.length) | 0];
+    if (adv >= 0) { gA = w[0]; gB = w[1]; }
+    else { gA = w[1]; gB = w[0]; }
+  }
+
+  mObj.done = true;
+  mObj.sc = [gA, gB];
+  updateLeagueTableForMatch(mObj.a, mObj.b, gA, gB);
+  recordLeagueGoalsAndAssists(mObj.a, sA, gA);
+  recordLeagueGoalsAndAssists(mObj.b, sB, gB);
+}
+
+// ARKA PLANDA OTOMATİK TETİKLENEN KULÜP OLAYLARI HAVUZU
+function buildCareerEventsCatalog() {
+  const userTeam = G.teams[0];
+  ensureTeamLineup(userTeam);
+  const healthyStarters = userTeam.starters.filter(p => !LG.injuries[p.id]);
+  const starPlayer = [...healthyStarters].sort((a, b) => b.r - a.r)[0] || userTeam.starters[0] || userTeam.picks[0];
+  const randomStarter = healthyStarters[(Math.random() * healthyStarters.length) | 0] || starPlayer;
+  const benchSub = userTeam.bench.find(b => b.pos === randomStarter.pos && !LG.injuries[b.id]) || userTeam.bench[0];
+  const lastRes = LG.lastResult || { userGoals: 0, oppGoals: 2, oppName: "Rakip" };
+
+  return [
+    {
+      id: "sponsor",
+      tag: "Sponsorluk Masası · Ticari Anlaşma",
+      title: "Etihad Airways, Qatar Airways ve Emirates'ten Forma Sponsorluğu Teklifi!",
+      desc: `Kulübünün Premier Lig'deki yükselişi sonrası 3 dev havayolu şirketi göğüs sponsorluğu için teklif sundu: <b>Qatar Airways</b> en yüksek nakit paketi verirken yoğun tanıtım turu istiyor; <b>Etihad Airways</b> dengeli bütçe ve tesis desteği sunuyor; <b>Emirates</b> ise şampiyonluk primli prestij paketi öneriyor.`,
+      choices: [
+        {
+          label: "Qatar Airways ile İmzala (+32 M€ Nakit · Tanıtım Turu: -%2 Kondisyon)",
+          effect: () => {
+            LG.clubFunds += 32;
+            LG.sponsorName = "Qatar Airways";
+            LG.moraleMod = Math.max(-15, LG.moraleMod - 2);
+            return `Qatar Airways ana sponsor oldu! Kasaya +32 M€ girdi, ticari çekimler nedeniyle kondisyonda -%2 yorgunluk oluştu.`;
+          }
+        },
+        {
+          label: "Etihad Airways ile İmzala (+24 M€ Nakit · Tesis Desteği: +%2 Performans)",
+          effect: () => {
+            LG.clubFunds += 24;
+            LG.sponsorName = "Etihad Airways";
+            LG.moraleMod += 2;
+            return `Etihad Airways ile anlaşma imzalandı! Kasaya +24 M€ eklendi ve yenilenen antrenman tesisleriyle performans +%2 arttı.`;
+          }
+        },
+        {
+          label: "Fly Emirates Prestij Paketi (+18 M€ Nakit · +%4 Takım Morali)",
+          effect: () => {
+            LG.clubFunds += 18;
+            LG.sponsorName = "Fly Emirates";
+            LG.moraleMod += 4;
+            return `Fly Emirates sponsorluğu açıklandı (+18 M€)! Kulüp prestiji ve oyuncu morali +%4 yükseldi.`;
+          }
+        }
+      ]
+    },
+    {
+      id: "bad_pitch",
+      tag: "Stadyum & Saha Krizi",
+      title: "Stadyum Zemini Çok Kötü Durumda!",
+      desc: `Yoğun yağış ve maç trafiği sonrasında stadyum zemini balçık ve çukurlarla doldu. Pas oyununuz aksıyor ve sakatlık riski arttı. Zemin için nasıl bir adım atacaksın?`,
+      choices: [
+        {
+          label: "Hibrit Çim Zemini Acilen Yenilet (-12 M€ · +%3 Saha Performansı)",
+          effect: () => {
+            LG.clubFunds = Math.max(0, LG.clubFunds - 12);
+            LG.moraleMod += 3;
+            return `12 M€ harcanarak stadyuma birinci sınıf hibrit çim serildi! Takımın pas temposu +%3 yükseldi.`;
+          }
+        },
+        {
+          label: "Kısmi Bakım Yaptır ve Uzun Top Taktiğine Geç (Ücretsiz · -%2 Performans)",
+          effect: () => {
+            LG.moraleMod = Math.max(-15, LG.moraleMod - 2);
+            return `Bozuk zeminde teknik oyundan vazgeçildi; takım performansı -%2 etkilendi.`;
+          }
+        }
+      ]
+    },
+    {
+      id: "media_backlash",
+      tag: "Spor Gündemi · Mağlubiyet Yankıları",
+      title: "Mağlubiyet Sonrası Gazetelerde Sert Eleştiri!",
+      desc: `${lastRes.oppName} karşısında alınan <b>${lastRes.userGoals}-${lastRes.oppGoals}</b>'lik yenilgi sonrası spor basını takımın taktik disiplinini ağır şekilde eleştirdi. Soyunma odasında moraller bozuk.`,
+      choices: [
+        {
+          label: "Tesisleri Dış Dünyaya Kapat & Takımı Kenetle (+%4 Odaklanma)",
+          effect: () => {
+            LG.moraleMod += 4;
+            return `Takım dış eleştirilere kulaklarını tıkayıp kenetlendi (+%4 performans).`;
+          }
+        },
+        {
+          label: "Oyunculara Tam Destek Ver (+%3 Oyuncu Sadakati)",
+          effect: () => {
+            LG.moraleMod += 3;
+            return `Oyuncuları koruyan tavrın soyunma odasında güven yarattı (+%3 performans).`;
+          }
+        },
+        {
+          label: "Disiplin Cezası Kes (+6 M€ Kasa · -%4 Moral)",
+          effect: () => {
+            LG.clubFunds += 6;
+            LG.moraleMod = Math.max(-15, LG.moraleMod - 4);
+            return `Oyunculara 6 M€ para cezası kesildi ancak soyunma odasında huzursuzluk oluştu (-%4 performans).`;
+          }
+        }
+      ]
+    },
+    {
+      id: "injury",
+      tag: "Sağlık Raporu · Sakatlık Krizi",
+      title: `${randomStarter.n} Antrenmanda Sakatlandı!`,
+      desc: `İlk 11 oyuncun <b>${randomStarter.n}</b> arka adalesinden sakatlık geçirdi. Sağlık ekibi normal şartlarda 3 hafta sahalardan uzak kalacağını bildirdi.`,
+      choices: [
+        {
+          label: "Özel Klinik Tedavisi Uygula (-8 M€ · 1 Hafta Sonra Döner)",
+          effect: () => {
+            LG.clubFunds = Math.max(0, LG.clubFunds - 8);
+            LG.injuries[randomStarter.id] = 1;
+            if (benchSub) {
+              const sIdx = userTeam.starters.findIndex(x => x.id === randomStarter.id);
+              const bIdx = userTeam.bench.findIndex(x => x.id === benchSub.id);
+              if (sIdx >= 0 && bIdx >= 0) {
+                userTeam.starters[sIdx] = benchSub;
+                userTeam.bench[bIdx] = randomStarter;
+              }
+            }
+            return `${randomStarter.n} özel kliniğe gönderildi (1 hafta dinlenecek, yerine ${benchSub ? benchSub.n : 'yedek oyuncu'} İlk 11'e alındı).`;
+          }
+        },
+        {
+          label: "Standart Dinlendirme (3 Hafta Yok · Yedek Oyuncu Oynar)",
+          effect: () => {
+            LG.injuries[randomStarter.id] = 3;
+            if (benchSub) {
+              const sIdx = userTeam.starters.findIndex(x => x.id === randomStarter.id);
+              const bIdx = userTeam.bench.findIndex(x => x.id === benchSub.id);
+              if (sIdx >= 0 && bIdx >= 0) {
+                userTeam.starters[sIdx] = benchSub;
+                userTeam.bench[bIdx] = randomStarter;
+              }
+            }
+            return `${randomStarter.n} 3 hafta kadro dışı kaldı; ${benchSub ? benchSub.n : 'yedek oyuncu'} İlk 11'e geçti.`;
+          }
+        }
+      ]
+    },
+    {
+      id: "takeover",
+      tag: "Yönetim Kurulu · Yatırım Teklifi",
+      title: "Kulübe Uluslararası Yatırım Fonu Ortaklık Teklifi!",
+      desc: `Küresel bir yatırım fonu <b>${userTeam.name}</b> hisselerinin %35'ini satın alarak kulübe sermaye girişi sağlamak istiyor.`,
+      choices: [
+        {
+          label: "Ortaklığı Onayla (+35 M€ Kulüp Kasası · +%3 Şampiyonluk Primi)",
+          effect: () => {
+            LG.clubFunds += 35;
+            LG.moraleMod += 3;
+            return `Yatırım fonu ortaklığı onaylandı! Kulüp kasasına +35 M€ eklendi ve primlerle takım morali +%3 arttı.`;
+          }
+        },
+        {
+          label: "Teklifi Reddet & Kulüp Yapısını Koru (+%5 Taraftar Desteği)",
+          effect: () => {
+            LG.moraleMod += 5;
+            return `Taraftarlar bağımsızlık kararını coşkuyla karşıladı! Saha içi performans +%5 yükseldi.`;
+          }
+        }
+      ]
+    },
+    {
+      id: "transfer_bid",
+      tag: "Transfer Masası · Astronomik Teklif",
+      title: `Avrupa Devinden ${starPlayer.n} İçin Astronomik Teklif!`,
+      desc: `Avrupa'nın dev kulüplerinden biri yıldız oyuncun <b>${starPlayer.n}</b> için kulüp yönetimine reddedilmesi güç bir teklif sundu. Oyuncunun kafası karışık.`,
+      choices: [
+        {
+          label: "Teklifi Reddet & Maaş İyileştirmesi Yap (-10 M€ · +1 Reyting)",
+          effect: () => {
+            LG.clubFunds = Math.max(0, LG.clubFunds - 10);
+            starPlayer.r = Math.min(99, starPlayer.r + 1);
+            return `${starPlayer.n} takımda kaldı! Yeni sözleşme sonrası oyuncunun genel reytingi ${starPlayer.r} seviyesine yükseldi.`;
+          }
+        },
+        {
+          label: "Oyuncuyla Görüşüp Sezon Sonuna Söz Al (Maliyetsiz · +%2 Uyum)",
+          effect: () => {
+            LG.moraleMod += 2;
+            return `${starPlayer.n} sezon sonuna kadar şampiyonluk yarışına odaklanmaya ikna edildi (+%2 uyum).`;
+          }
+        }
+      ]
+    },
+    {
+      id: "var_referee",
+      tag: "Hakem & VAR Gündemi · PGMOL",
+      title: "Tartışmalı VAR Kararları ve Kritik Hakem Ataması!",
+      desc: `Son haftalardaki tartışmalı VAR kararları gündemdeyken bu haftaki kritik maça da en çok tartışılan hakem triosu atandı.`,
+      choices: [
+        {
+          label: "Resmi Kulüp Bildirisi Yayınla ve VAR Kayıtlarını İste (+%4 Tribün Baskısı)",
+          effect: () => {
+            LG.moraleMod += 4;
+            return `Resmi bildiri sonrası tribünler kenetlendi (+%4 saha içi baskı avantajı).`;
+          }
+        },
+        {
+          label: "Takıma 'Sadece Oyuna Odaklanın' Talimatı Ver (+%2 Taktik Disiplin)",
+          effect: () => {
+            LG.moraleMod += 2;
+            return `Oyuncular kart görmemek ve oyuna odaklanmak konusunda uyarıldı (+%2 disiplin).`;
+          }
+        }
+      ]
+    },
+    {
+      id: "dressing_room_crisis",
+      tag: "Soyunma Odası · Disiplin Krizi",
+      title: `${starPlayer.n} Sabah Antrenmanına Geç Kaldı!`,
+      desc: `Yıldız oyuncun <b>${starPlayer.n}</b> kritik hafta öncesinde sabah idmanına izinsiz şekilde geç katıldı. Takım arkadaşları vereceğin kararı bekliyor.`,
+      choices: [
+        {
+          label: "Para Cezası Kes ve Disiplini Koru (+5 M€ Kasa · +%3 Disiplin)",
+          effect: () => {
+            LG.clubFunds += 5;
+            LG.moraleMod += 3;
+            return `Tavizsiz disiplinin takımda saygı uyandırdı (+5 M€ ceza geliri, +%3 takım disiplini).`;
+          }
+        },
+        {
+          label: "Olayı Kapat ve Yıldız Oyuncuyu Uyarmakla Yetin (-%3 Takım İçi Adalet)",
+          effect: () => {
+            LG.moraleMod = Math.max(-15, LG.moraleMod - 3);
+            return `Yıldıza ayrıcalık tanıman diğer oyuncuların tepkisini çekti (-%3 takım uyumu).`;
+          }
+        }
+      ]
+    },
+    {
+      id: "fan_protest",
+      tag: "Tribün Gündemi · Bilet Fiyatları",
+      title: "Taraftarlardan Bilet Fiyatları Tepkisi!",
+      desc: `Kale arkası taraftar grupları, artan bilet fiyatları nedeniyle bu haftaki maçın ilk 15 dakikasında protesto hazırlığında.`,
+      choices: [
+        {
+          label: "Bilet Fiyatlarında %25 İndirim Yap (-6 M€ · +%5 Tribün Desteği)",
+          effect: () => {
+            LG.clubFunds = Math.max(0, LG.clubFunds - 6);
+            LG.moraleMod += 5;
+            return `Bilet indirimi sonrası stadyum tamamen doldu! Tribün desteğiyle takım performansı +%5 arttı.`;
+          }
+        },
+        {
+          label: "Fiyatları Sabit Tut (Gelir Kaybı Yok · -%3 Tribün Desteği)",
+          effect: () => {
+            LG.moraleMod = Math.max(-15, LG.moraleMod - 3);
+            return `Tribünlerdeki protesto nedeniyle iç saha atmosferi soğudu (-%3 performans).`;
+          }
+        }
+      ]
+    },
+    {
+      id: "youth_boost",
+      tag: "Antrenman Raporu · Bireysel Gelişim",
+      title: `${randomStarter.n} Antrenmanlarda Parlıyor!`,
+      desc: `Teknik heyet, <b>${randomStarter.n}</b> isimli oyuncunun son haftalarda ekstra şut ve kondisyon çalışarak formunun zirvesine çıktığını raporladı.`,
+      choices: [
+        {
+          label: "Özel Prim Ver & Sorumluluğunu Artır (+1 Kalıcı Reyting)",
+          effect: () => {
+            randomStarter.r = Math.min(99, randomStarter.r + 1);
+            return `${randomStarter.n} ödüllendirildi ve kalıcı reytingi ${randomStarter.r} oldu!`;
+          }
+        },
+        {
+          label: "Tüm Takıma Moral Yemeği Düzenle (+%3 Takım Performansı)",
+          effect: () => {
+            LG.moraleMod += 3;
+            return `Takım içi kolej havası güçlendi, genel saha performansı +%3 arttı!`;
+          }
+        }
+      ]
+    },
+    {
+      id: "friendly_cup",
+      tag: "Uluslararası Davet · Özel Gösteri Maçı",
+      title: "Riyad Sezon İçi Dostluk Kupası Daveti!",
+      desc: `Uluslararası organizatörler, fikstür arasındaki boşlukta kulübünü özel bir gösteri maçına davet etti. Katılırsan ciddi bir yayın geliri elde edeceksin ancak yolculuk takımı yorabilir.`,
+      choices: [
+        {
+          label: "Daveti Kabul Et (+16 M€ Gelir · Yolculuk Yorgunluğu: -%2 Form)",
+          effect: () => {
+            LG.clubFunds += 16;
+            LG.moraleMod = Math.max(-15, LG.moraleMod - 2);
+            return `Özel dostluk maçından kasaya +16 M€ girdi; seyahat temposu nedeniyle formda -%2 düşüş yaşandı.`;
+          }
+        },
+        {
+          label: "Teklifi Reddet & Tesislerde Taktik Kamp Yap (+%3 Saha İçi Uyum)",
+          effect: () => {
+            LG.moraleMod += 3;
+            return `Seyahat teklifi reddedildi; tesislerde yapılan özel taktik çalışmayla takım formu +%3 yükseldi.`;
+          }
+        }
+      ]
+    },
+    {
+      id: "analytics_lab",
+      tag: "Tesis Yatırımı · Futbol Teknolojisi",
+      title: "Yapay Zeka Destekli Performans & Analiz Laboratuvarı!",
+      desc: `Sportif direktörün, kulüp tesislerine oyuncu yük takibi ve rakip duran top analizi yapan yeni nesil bir veri laboratuvarı kurulmasını önerdi.`,
+      choices: [
+        {
+          label: "Laboratuvarı Kur (-10 M€ · +%4 Kalıcı Taktik & Kondisyon Katkısı)",
+          effect: () => {
+            LG.clubFunds = Math.max(0, LG.clubFunds - 10);
+            LG.moraleMod += 4;
+            return `10 M€ yatırımla veri analiz laboratuvarı kuruldu! Takımın taktik hazırlığı +%4 güçlendi.`;
+          }
+        },
+        {
+          label: "Bütçeyi Koru & Mevcut Analiz Ekibiyle Devam Et (+%1 Odak)",
+          effect: () => {
+            LG.moraleMod += 1;
+            return `Bütçe korundu, mevcut teknik analiz ekibiyle çalışmalara devam edildi (+%1 odak).`;
+          }
+        }
+      ]
+    },
+    {
+      id: "bonus_revision",
+      tag: "Soyunma Odası · Prim Görüşmesi",
+      title: "Takım Kaptanlarından Şampiyonluk Primi Talebi!",
+      desc: `Takım kaptanları, zorlu Premier Lig fikstürü öncesinde yönetimden maç başı ve şampiyonluk primlerinin güncellenmesini talep etti.`,
+      choices: [
+        {
+          label: "Prim Paketi Güncellemesini Onayla (-8 M€ · +%5 Şampiyonluk Hırsı)",
+          effect: () => {
+            LG.clubFunds = Math.max(0, LG.clubFunds - 8);
+            LG.moraleMod += 5;
+            return `8 M€'luk yeni prim paketi açıklandı! Soyunma odasında şampiyonluk hırsı +%5 arttı.`;
+          }
+        },
+        {
+          label: "Sezon Sonuna Kadar Mevcut Sözleşmeleri Koru (-%2 Moral)",
+          effect: () => {
+            LG.moraleMod = Math.max(-15, LG.moraleMod - 2);
+            return `Prim talebi sezon sonuna ertelendi; bazı oyuncularda -%2 motivasyon kaybı oluştu.`;
+          }
+        }
+      ]
+    },
+    {
+      id: "stadium_vip",
+      tag: "Kulüp Ekonomisi · Stadyum Projesi",
+      title: "VIP Loca ve Maç Günü Ticari Alan Yenilemesi!",
+      desc: `Pazarlama departmanı, stadyumun batı tribününe yeni kurumsal VIP localar ekleyerek maç günü gelirlerini artırma projesini sundu.`,
+      choices: [
+        {
+          label: "Kurumsal VIP Locaları Aç (+15 M€ Net Gelir)",
+          effect: () => {
+            LG.clubFunds += 15;
+            return `Yeni VIP locaların satışından kulüp kasasına +15 M€ sıcak para girdi!`;
+          }
+        },
+        {
+          label: "Alanı Gençlik & Taraftar Tribününe Ayır (+%4 İç Saha Atmosferi)",
+          effect: () => {
+            LG.moraleMod += 4;
+            return `Tribünler ateşli taraftar gruplarına tahsis edildi! İç saha atmosferi +%4 güçlendi.`;
+          }
+        }
+      ]
+    },
+    {
+      id: "recovery_protocol",
+      tag: "Sağlık Kurulu · Yoğun Fikstür",
+      title: "Kriyoterapi ve Rejenerasyon Merkezi Yatırımı!",
+      desc: `Sağlık ekibi, üst üste oynanan sert Premier Lig maçları sonrası kas yorgunluğunu azaltacak yeni rejenerasyon üniteleri talep ediyor.`,
+      choices: [
+        {
+          label: "Rejenerasyon Ünitelerini Al (-6 M€ · Sakatlık Süreleri -1 Hafta & +%3 Form)",
+          effect: () => {
+            LG.clubFunds = Math.max(0, LG.clubFunds - 6);
+            LG.moraleMod += 3;
+            for (const pid of Object.keys(LG.injuries)) {
+              LG.injuries[pid] = Math.max(0, LG.injuries[pid] - 1);
+              if (LG.injuries[pid] <= 0) delete LG.injuries[pid];
+            }
+            return `Rejenerasyon merkezi devreye girdi! Oyuncu kondisyonu +%3 arttı ve mevcut sakatlık süreleri kısaldı.`;
+          }
+        },
+        {
+          label: "Mevcut Fizyoterapi Programıyla Devam Et (Maliyetsiz)",
+          effect: () => {
+            return `Sağlık ekibi standart dinlenme protokolüyle haftayı tamamladı.`;
+          }
+        }
+      ]
+    },
+    {
+      id: "saudi_mega_offer",
+      tag: "Transfer Masası · Suudi Pro Ligi Teklifi",
+      title: `Suudi Arabistan Kulübünden ${starPlayer.n} İçin 85 M€'luk Teklif!`,
+      desc: `Suudi Pro Ligi devlerinden biri, takımının en önemli yıldızı <b>${starPlayer.n}</b>'a yıllık 40 M€ maaş ve kulübüne dev bir bonservis paketi sundu. Oyuncunun menajeri yönetimle acil görüşme talep etti.`,
+      choices: [
+        {
+          label: `Kapıyı Kapat & Yıldız Oyuncuya Sadakat Primi Ver (-9 M€ · +1 Kalıcı Reyting)`,
+          effect: () => {
+            LG.clubFunds = Math.max(0, LG.clubFunds - 9);
+            starPlayer.r = Math.min(99, starPlayer.r + 1);
+            return `${starPlayer.n} astronomik teklifi reddedip takımda kaldı! Özel sadakat primiyle reytingi ${starPlayer.r} seviyesine yükseldi.`;
+          }
+        },
+        {
+          label: `Menajeriyle Sert Konuş ve Sözleşmesini Hatırlat (Maliyetsiz · -%2 Moral)`,
+          effect: () => {
+            LG.moraleMod = Math.max(-15, LG.moraleMod - 2);
+            return `Transfer teklifi reddedildi ancak ${starPlayer.n} cephesinde kısa süreli kırgınlık yaşandı (-%2 moral).`;
+          }
+        }
+      ]
+    },
+    {
+      id: "docuseries_deal",
+      tag: "Medya & Yayın · Kulüp Belgeseli",
+      title: "Dijital Platformdan 'Soyunma Odası' Belgeseli Teklifi!",
+      desc: `Küresel bir dijital yayın platformu, sezon boyunca soyunma odası ve antrenman tesislerinde kamera bulundurarak kulübün şampiyonluk yürüyüşünü belgesel yapmak için yüksek bütçeli teklif sundu.`,
+      choices: [
+        {
+          label: "Anlaşmayı İmzala (+20 M€ Yayın Geliri · Kameralar Nedeniyle -%2 Odak)",
+          effect: () => {
+            LG.clubFunds += 20;
+            LG.moraleMod = Math.max(-15, LG.moraleMod - 2);
+            return `Belgesel anlaşmasıyla kasaya +20 M€ girdi; soyunma odasındaki kameralar konsantrasyonu -%2 etkiledi.`;
+          }
+        },
+        {
+          label: "Soyunma Odası Mahremiyetini Koru & Reddet (+%3 Takım İçi Güven)",
+          effect: () => {
+            LG.moraleMod += 3;
+            return `Kameraları soyunma odasına sokmadın; oyuncuların sana olan güveni ve saha içi uyumu +%3 arttı.`;
+          }
+        }
+      ]
+    }
+  ];
+}
+
+// LİGDEKİ RAKİP YILDIZLAR (+/- REYTİNG ETKİLİ) VE DİĞER LİGLERDEN DÜNYA FUTBOLU HABER MOTORU
+function modifyRivalPlayerRating(teamObj, playerName, delta) {
+  if (!teamObj) return null;
+  let target = (teamObj.starters || []).find(p => p.n === playerName) || (teamObj.picks || []).find(p => p.n === playerName);
+  if (!target && teamObj.starters && teamObj.starters.length) {
+    target = [...teamObj.starters].sort((a, b) => b.r - a.r)[0];
+  }
+  if (!target) return null;
+  const oldR = target.r;
+  target.r = Math.max(68, Math.min(97, target.r + delta));
+  const sign = delta > 0 ? `+${delta}` : `${delta}`;
+  return { name: target.n, oldR, newR: target.r, badge: `${target.n}: ${sign} Reyting (${oldR} → ${target.r})`, isPositive: delta > 0 };
+}
+
+const PREMIER_STAR_NEWS_TEMPLATES = [
+  {
+    id: "mci_haaland_fire",
+    club: "Manchester City",
+    player: "Erling Haaland",
+    delta: 2,
+    source: "Sky Sports · Yıldız Raporu",
+    title: "Erling Haaland Özel Bitiricilik İdmanlarıyla Durdurulamıyor!",
+    body: "Manchester City'nin Norveçli gol makinesi Erling Haaland, tesislerde yaptığı ekstra şut ve fiziksel güçlendirme çalışmalarının ardından formunun zirvesine çıktı."
+  },
+  {
+    id: "mci_psr_foden",
+    club: "Manchester City",
+    player: "Phil Foden",
+    delta: -2,
+    source: "The Athletic · Etihad Kulisleri",
+    title: "Manchester City'de Finansal Denetim Gerginliği ve Form Düşüşü!",
+    body: "Premier Lig mali kurulunun incelemesi kulüpte soğuk rüzgarlar estirirken, Phil Foden son haftalardaki yoğun maç temposu nedeniyle fiziksel düşüş yaşıyor."
+  },
+  {
+    id: "ars_saka_boost",
+    club: "Arsenal",
+    player: "Bukayo Saka",
+    delta: 2,
+    source: "BBC Sport · Kuzey Londra",
+    title: "Bukayo Saka Kanatta Fırtına Gibi Esiyor!",
+    body: "Arsenal'in yıldız kanat oyuncusu Bukayo Saka, son haftalardaki hücum istatistikleriyle ligin en tehlikeli hücumcuları arasında ilk sıraya yerleşti."
+  },
+  {
+    id: "ars_odegaard_dip",
+    club: "Arsenal",
+    player: "Martin Odegaard",
+    delta: -2,
+    source: "Evening Standard · Sağlık Raporu",
+    title: "Arsenal'de Martin Odegaard Hafif Sakatlıkla Boğuşuyor!",
+    body: "Kuzey Londra ekibinin kaptanı Martin Odegaard'ın bileğindeki ağrılar nedeniyle hafta içi antrenmanların bir bölümünü kaçırdığı ve maç ritminde düşüş yaşadığı bildirildi."
+  },
+  {
+    id: "liv_isak_surge",
+    club: "Liverpool",
+    player: "Alexander Isak",
+    delta: 2,
+    source: "Liverpool Echo · Anfield Gündemi",
+    title: "Alexander Isak Anfield'ı Coşturmaya Devam Ediyor!",
+    body: "Liverpool hücum hattının en keskin silahı Alexander Isak, ceza sahası içindeki soğukkanlı bitiriciliğiyle teknik heyetten tam not aldı."
+  },
+  {
+    id: "liv_wirtz_pressure",
+    club: "Liverpool",
+    player: "Florian Wirtz",
+    delta: -1,
+    source: "Sky Sports · Analiz",
+    title: "Florian Wirtz Üzerinde Sert Savunma Markajı!",
+    body: "Premier Lig savunmalarının sert ikili mücadeleleri karşısında yıpranan Florian Wirtz, son haftalarda oyun kurmakta beklenenden fazla zorlanıyor."
+  },
+  {
+    id: "che_palmer_cold",
+    club: "Chelsea",
+    player: "Cole Palmer",
+    delta: -2,
+    source: "The Telegraph · Londra Gündemi",
+    title: "Stamford Bridge'de Cole Palmer ve Rotasyon Tartışması!",
+    body: "Chelsea'nin kalabalık kadrosunda sistem değişiklikleri nedeniyle istediği topları alamayan Cole Palmer'ın antrenmanlarda moralsiz olduğu gözlemlendi."
+  },
+  {
+    id: "che_joaopedro_hot",
+    club: "Chelsea",
+    player: "Joao Pedro",
+    delta: 2,
+    source: "Sky Sports · Maç Analizi",
+    title: "Chelsea Hücumunda Joao Pedro Rüzgarı!",
+    body: "Mavilerin Brezilyalı yıldızı Joao Pedro, bağlantı oyunu ve ceza sahası koşularıyla takımın en formda gol ayağı haline geldi."
+  },
+  {
+    id: "mun_bruno_crisis",
+    club: "Manchester United",
+    player: "Bruno Fernandes",
+    delta: -2,
+    source: "Manchester Evening News",
+    title: "Old Trafford'da Kaptan Bruno Fernandes'e Medya Eleştirisi!",
+    body: "Manchester United'ın dalgalı performansı sonrası İngiliz basını kaptan Bruno Fernandes'in saha içi beden dilini ağır sözlerle eleştirdi; oyuncunun morali bozuk."
+  },
+  {
+    id: "mun_cunha_form",
+    club: "Manchester United",
+    player: "Matheus Cunha",
+    delta: 2,
+    source: "The Guardian · Carrington Raporu",
+    title: "Matheus Cunha Carrington Tesislerinde Vites Yükseltti!",
+    body: "Manchester United'ın hücum yıldızı Matheus Cunha, hızı ve uzaktan şutlarıyla kırmızı-şeytanların hücumdaki en büyük kozu oldu."
+  },
+  {
+    id: "tot_vandeven_wall",
+    club: "Tottenham",
+    player: "Micky van de Ven",
+    delta: 2,
+    source: "Football London",
+    title: "Micky van de Ven Hız Rekorları Kırıyor!",
+    body: "Tottenham'ın Hollandalı stoperi Micky van de Ven, savunma arkasına atılan toplardaki sprint hızıyla Premier Lig forvetlerine geçit vermiyor."
+  },
+  {
+    id: "tot_kudus_slump",
+    club: "Tottenham",
+    player: "Mohamed Kudus",
+    delta: -2,
+    source: "Evening Standard",
+    title: "Tottenham'da Mohamed Kudus Taktik Disiplin Uyarısı Aldı!",
+    body: "Son maçlarda top kaybı oranı yükselen Mohamed Kudus, teknik heyet tarafından bireysel oyun yerine pas oyununa dönmesi konusunda uyarıldı."
+  },
+  {
+    id: "new_tonali_boost",
+    club: "Newcastle United",
+    player: "Sandro Tonali",
+    delta: 2,
+    source: "Chronicle Live",
+    title: "St. James' Park'ta Sandro Tonali Orta Sahayı Domine Ediyor!",
+    body: "Newcastle United'ın İtalyan yıldızı Sandro Tonali, yüksek koşu mesafesi ve kilit paslarıyla takımını sırtlamaya devam ediyor."
+  },
+  {
+    id: "avl_jackson_boost",
+    club: "Aston Villa",
+    player: "Nicolas Jackson",
+    delta: 2,
+    source: "Birmingham Mail",
+    title: "Villa Park'ta Nicolas Jackson Savunma Arkasını Yıpratıyor!",
+    body: "Aston Villa'nın hızlı forveti Nicolas Jackson, yakaladığı form grafiğiyle teknik heyetin yüzünü güldürdü."
+  },
+  {
+    id: "cry_wharton_star",
+    club: "Crystal Palace",
+    player: "Adam Wharton",
+    delta: 2,
+    source: "South London Press",
+    title: "Avrupa Devleri Adam Wharton'ın Peşinde!",
+    body: "Crystal Palace'ın genç orta saha beyni Adam Wharton, kusursuz pas vizyonuyla haftanın en çok konuşulan yeteneklerinden biri oldu."
+  },
+  {
+    id: "nfo_gibbswhite_dip",
+    club: "Nottingham Forest",
+    player: "Morgan Gibbs-White",
+    delta: -1,
+    source: "Nottingham Post",
+    title: "Nottingham Forest'ta Morgan Gibbs-White Yorgunluk Sinyalleri Veriyor!",
+    body: "Sezon başından beri neredeyse her maçta 90 dakika sahada kalan Morgan Gibbs-White'ın kondisyon değerlerinde düşüş tespit edildi."
+  }
+];
+
+const WORLD_FOOTBALL_NEWS_TEMPLATES = [
+  {
+    id: "world_ronaldo_1000",
+    club: "Al-Nassr",
+    source: "Sky Sports · Suudi Pro Ligi",
+    title: "Tarihi An: Cristiano Ronaldo 1000. Golüne Ulaştı ve Futbolu Bırakıyor!",
+    body: "Suudi Pro Ligi'nde Al-Nassr formasıyla kariyerinin 1000. resmi golünü kaydederek futbol tarihinde kırılması imkânsız bir rekora imza atan Cristiano Ronaldo, maç sonunda yaptığı duygusal açıklamayla sezon sonunda futbolu bırakacağını resmen duyurdu!"
+  },
+  {
+    id: "world_messi_miami",
+    club: "Inter Miami",
+    source: "The Guardian · MLS (ABD)",
+    title: "Miami'de Lionel Messi ve Eski Barcelona Tayfasından Resital!",
+    body: "MLS'te Inter Miami forması giyen Lionel Messi, Luis Suarez, Jordi Alba ve Sergio Busquets'in ceza sahası çevresinde tek dokunuşlarla ördüğü muazzam pas trafiği sonrası gelen jeneriklik gol dünya basınında haftanın olayı oldu."
+  },
+  {
+    id: "world_osimhen_saudi",
+    club: "Al-Hilal",
+    source: "Sky Sports · Transfer Bombası",
+    title: "Victor Osimhen 80 Milyon Euro'ya Suudi Arabistan'a Satıldı!",
+    body: "Avrupa ve Türk futbolunda yılın transfer bombası patladı! Nijeryalı süper golcü Victor Osimhen, Suudi Arabistan temsilcisi Al-Hilal'in sunduğu 80 M€ peşin bonservis ve yıllık 45 M€ net maaş teklifinin ardından Suudi Pro Ligi'ne transfer oldu."
+  },
+  {
+    id: "world_transfer_hijack",
+    club: "Real Madrid",
+    source: "Marca · Transfer Çalımı",
+    title: "Yılın Transfer Çalımı: Sağlık Kontrolüne Giderken Uçağın Rotası Değişti!",
+    body: "Avrupa transfer piyasasında inanılmaz bir son dakika operasyonu yaşandı! Ezeli rakibiyle her konuda anlaşan ve sağlık kontrolü için havalimanına inen yıldız oyuncunun özel uçağı, gelen son dakika teklifiyle rotasını değiştirip rakip kulübe imza attı."
+  },
+  {
+    id: "world_davies_contract",
+    club: "Bayern Munchen",
+    source: "The Guardian · Sözleşme Krizi",
+    title: "Alphonso Davies ve Yönetim Arasında Maaş Krizi Büyüyor!",
+    body: "Bayern Münih'te sözleşme yenileme görüşmelerinde astronomik maaş talebinde bulunan Alphonso Davies ile yönetim arasındaki ipler gerildi. Yeni kontrata imza atmaması halinde yıldız oyuncunun kadro dışı bırakılma ihtimali konuşuluyor."
+  },
+  {
+    id: "world_loan_revenge",
+    club: "Monaco",
+    source: "Sky Sports · Avrupa Kupaları",
+    title: "Kiralık Yıldızın İntikamı: Bonservisini Elinde Bulunduran Takıma Gol Attı, Sevinmedi!",
+    body: "Sezon başında kadroda düşünülmediği için kiralık gönderilen genç yetenek, kupa eşleşmesinde bonservisini elinde bulunduran kendi kulübüne 89. dakikada attığı golle takımını tur atlattı ve gol sonrası ellerini kaldırarak sevinmedi."
+  },
+  {
+    id: "world_superclasico_libertadores",
+    club: "Bournemouth",
+    source: "Marca · Copa Libertadores",
+    title: "Arjantin'de Nefes Kesen Süper Klasiko: 4 Kırmızı Kart, 90+8'de Gelen Galibiyet!",
+    body: "Güney Amerika'da River Plate ile Boca Juniors arasında oynanan tarihi Süper Klasiko'da saha karıştı! 4 kırmızı kartın çıktığı ve 90+8. dakikada gelen golle çözülen dev derbideki unutulmaz atmosfer dünya gündemine oturdu."
+  },
+  {
+    id: "world_ucl_12players_error",
+    club: "Bayer Leverkusen",
+    source: "Sky Sports · Taktik & Teknoloji",
+    title: "Şampiyonlar Ligi'nde İnanılmaz Hata: Oyuncu Değişikliği Kağıdı Yanlış Verildi!",
+    body: "Devler Ligi gecesinde dördüncü hakeme teslim edilen oyuncu değişikliği kağıdındaki numara hatası nedeniyle sahada 20 saniye boyunca 12 kişi kalan ekip, rakibin itirazı üzerine UEFA disiplin talimatı gereği hükmen mağlubiyet tehlikesiyle karşı karşıya kaldı."
+  },
+  {
+    id: "world_dortmund_yellow_wall",
+    club: "Borussia Dortmund",
+    source: "The Guardian · Taraftar & Atmosfer",
+    title: "Sarı Duvar'dan Görsel Şölen: Dortmund Tribünlerinden Tarihi Koreografi!",
+    body: "Signal Iduna Park'ta Devler Ligi gecesinde ünlü 'Sarı Duvar' tribününün hazırladığı dev 3 boyutlu koreografi izleyenleri büyüledi ve sosyal medyada milyonlarca kez paylaşıldı."
+  },
+  {
+    id: "world_fifa_offside_wenger",
+    club: "Inter",
+    source: "Marca · FIFA & Kural Devrimi",
+    title: "FIFA'dan Yeni Kural Değişikliği Sinyali: Ofsayt Sisteminde Devrim!",
+    body: "Arsene Wenger'in önerdiği ve hücum oyuncusunun ofsayt sayılması için 'tüm vücudunun son savunmacının önünde olması' şartını getiren yeni ofsayt sisteminin FIFA tarafından pilot turnuvalarda resmen test edilmeye başlandığı açıklandı."
+  },
+  {
+    id: "world_superlig_samsun",
+    club: "Samsunspor",
+    source: "Sky Sports · Süper Lig Özel",
+    title: "Anadolu Kulübünden Devlere Gözdağı: Samsunspor'un 10 Maçtır Bileği Bükülmüyor!",
+    body: "Trendyol Süper Lig'de müthiş bir çıkış yakalayan Samsunspor, üst üste 10 maçlık yenilmezlik serisiyle devleri geride bırakarak zirve yarışına resmen ortak oldu!"
+  },
+  {
+    id: "world_superlig_goztepe",
+    club: "Göztepe",
+    source: "The Guardian · Süper Lig Raporu",
+    title: "Anadolu Kulübünden Devlere Gözdağı: Göztepe 10 Maçtır Yenilmiyor!",
+    body: "İzmir temsilcisi Göztepe, Gürsel Aksel Stadyumu'ndaki müthiş taraftar desteği ve dinamik kadrosuyla 10 maçlık yenilmezlik serisi yakalayarak Süper Lig'de zirve yarışına ortak oldu!"
+  },
+  {
+    id: "world_superlig_eyup",
+    club: "Eyüpspor",
+    source: "Marca · Avrupa Ligleri",
+    title: "Süper Lig'de Sürpriz Çıkış: Eyüpspor 10 Maçtır Bileği Bükülmüyor!",
+    body: "Oynadığı pas odaklı modern futbolla dikkat çeken Eyüpspor, güçlü rakiplerine karşı yakaladığı 10 maçlık yenilmezlik serisiyle ligin üst sıralarına demir attı."
+  },
+  {
+    id: "world_enrique_press",
+    club: "PSG",
+    source: "Marca · Fransa Ligue 1",
+    title: "PSG Hocası Luis Enrique Basın Toplantısında Gazetecilerle Kavga Etti!",
+    body: "Paris Saint-Germain'in maç sonu basın toplantısında taktik tercihlerini sorgulayan Fransız muhabirle sert bir tartışmaya giren teknik direktör Luis Enrique, 'Futboldan anlamıyorsunuz!' diyerek mikrofonu bırakıp salonu terk etti."
+  },
+  {
+    id: "world_real_mbappe_vini",
+    club: "Real Madrid",
+    source: "Marca · İspanya La Liga",
+    title: "Real Madrid'de Mbappé ve Vinicius Jr. Arasında Penaltı Kulisleri!",
+    body: "Santiago Bernabéu'da son maçta kazanılan penaltı atışı sonrası Kylian Mbappé ve Vinicius Junior arasındaki görev paylaşımı İspanyol basınının bir numaralı gündem maddesi oldu."
+  },
+  {
+    id: "world_barca_yamal",
+    club: "Barcelona",
+    source: "The Guardian · La Liga",
+    title: "Barcelona'dan Lamine Yamal'a 1 Milyar Euro'luk Yeni Sözleşme Zırhı!",
+    body: "Katalan devi Barcelona, Körfez ve İngiliz kulüplerinin radarına giren genç süper yıldızı Lamine Yamal ile yeni kontrat imzalayarak serbest kalma bedelini 1 Milyar € olarak sabitledi."
+  },
+  {
+    id: "world_bayern_kane",
+    club: "Bayern Munchen",
+    source: "Sky Sports · Bundesliga",
+    title: "Bayern Münih'te Harry Kane Gol Rekorlarını Altüst Ediyor!",
+    body: "Bundesliga'da hafta sonunu hat-trick ile kapatan İngiliz yıldız Harry Kane, Almanya'da maç başına gol ortalamasıyla tarihin en verimli sezonlarından birini yaşıyor."
+  },
+  {
+    id: "world_superlig_derby",
+    club: "Fenerbahce",
+    source: "Sky Sports · Trendyol Süper Lig",
+    title: "Süper Lig'de Dev Derbi Öncesi Yabancı VAR ve Hakem Fırtınası!",
+    body: "Türkiye'de şampiyonluk düğümünü çözecek Fenerbahçe - Galatasaray derbisi öncesinde iki kulüp yönetimleri karşılıklı açıklamalar yayınladı; derbi heyecanı tüm ülkeyi sardı."
+  },
+  {
+    id: "world_seriea_inter_milan",
+    club: "Inter",
+    source: "The Guardian · Serie A",
+    title: "Milano Derbisinde Nefes Kesen Mücadele ve Taktik Savaşı!",
+    body: "Serie A'nın zirvesini yakından ilgilendiren Della Madonnina derbisinde Inter ve Milan arasındaki sert mücadele İtalyan spor manşetlerini süsledi."
+  },
+  {
+    id: "world_bjk_ts",
+    club: "Besiktas",
+    source: "Sky Sports · Süper Lig Gündemi",
+    title: "Dolmabahçe'de Beşiktaş ve Trabzonspor Arasında Kritik Randevu!",
+    body: "Trendyol Süper Lig'de haftanın dev maçında Beşiktaş ile Trabzonspor karşı karşıya gelirken tribünlerdeki koreografi ve coşku Avrupa basınında da geniş yer buldu."
+  },
+  {
+    id: "world_juve_kenan",
+    club: "Juventus",
+    source: "The Guardian · İtalya Serie A",
+    title: "Torino'da 10 Numaralı Kenan Yıldız Rüzgarı!",
+    body: "Juventus'un genç yıldızı Kenan Yıldız, Şampiyonlar Ligi ve Serie A'da attığı klas gollerle İtalyan taraftarların sevgilisi haline geldi."
+  },
+  {
+    id: "world_real_arda",
+    club: "Real Madrid",
+    source: "Marca · İspanya Gündemi",
+    title: "Santiago Bernabéu'da Arda Güler Ayakta Alkışlandı!",
+    body: "Real Madrid orta sahasında ilk 11'de sahaya çıkan Arda Güler, yaptığı asist ve uzaktan golüyle maçın oyuncusu seçildi."
+  }
+];
+
+const UCL_SAMPLE_PAIRS = [
+  ["Real Madrid", "Bayern Munchen"],
+  ["Barcelona", "PSG"],
+  ["Inter", "Atletico Madrid"],
+  ["Galatasaray", "Juventus"],
+  ["Borussia Dortmund", "Milan"],
+  ["Bayer Leverkusen", "Porto"],
+  ["Fenerbahce", "Benfica"],
+  ["Sporting", "Ajax"],
+  ["Real Madrid", "Inter"],
+  ["Bayern Munchen", "Barcelona"]
+];
+
+function generateChampionsLeagueHeadline(completedWeek) {
+  const pair = UCL_SAMPLE_PAIRS[(completedWeek + ((Math.random() * UCL_SAMPLE_PAIRS.length) | 0)) % UCL_SAMPLE_PAIRS.length];
+  const [clubA, clubB] = pair;
+  const scores = [[3, 1], [2, 1], [2, 2], [3, 2], [2, 0], [1, 0], [4, 2]];
+  const [gA, gB] = scores[(Math.random() * scores.length) | 0];
+
+  const playersA = (DATA[clubA] || []).slice(-5);
+  const playersB = (DATA[clubB] || []).slice(-5);
+  const starA = playersA.length ? playersA[(Math.random() * playersA.length) | 0][0] : "Yıldız Oyuncu";
+  const starB = playersB.length ? playersB[(Math.random() * playersB.length) | 0][0] : "Yıldız Oyuncu";
+
+  if (gA === gB) {
+    return {
+      week: completedWeek,
+      source: "Sky Sports · Şampiyonlar Ligi Gecesi",
+      clubLogoName: clubA,
+      teamIdx: null,
+      title: `Devler Ligi'nde Nefes Kesen Maç: ${clubA} ${gA} - ${gB} ${clubB}!`,
+      body: `UEFA Şampiyonlar Ligi haftanın maçında ${clubA} ile ${clubB} yenişemedi (${gA}-${gB}). Ev sahibi ekipte ${starA}, konuk takımda ise ${starB} sergiledikleri performansla gecenin yıldızları oldu.`,
+      effectBadge: `UCL · ${clubA} ${gA}-${gB} ${clubB}`,
+      effectPositive: null
+    };
+  }
+
+  return {
+    week: completedWeek,
+    source: "Sky Sports · Şampiyonlar Ligi Gecesi",
+    clubLogoName: clubA,
+    teamIdx: null,
+    title: `Şampiyonlar Ligi'nde Dev Zafer: ${clubA} ${gA} - ${gB} ${clubB}!`,
+    body: `UEFA Şampiyonlar Ligi gecesinin en kritik randevusunda ${clubA}, sahasında ağırladığı ${clubB} karşısında ${starA}'in yıldızlaştığı maçı ${gA}-${gB} kazanarak büyük avantaj yakaladı.`,
+    effectBadge: `UCL · ${clubA} ${gA}-${gB} ${clubB}`,
+    effectPositive: true
+  };
+}
+
+function generateDynamicMatchHeadline(roundMatches, completedWeek) {
+  if (!roundMatches || !roundMatches.length) return null;
+  const aiMatches = roundMatches.filter(m => m.done && m.sc && m.a !== 0 && m.b !== 0);
+  if (!aiMatches.length) return null;
+
+  const sorted = [...aiMatches].sort((x, y) => {
+    const diffX = Math.abs(x.sc[0] - x.sc[1]);
+    const diffY = Math.abs(y.sc[0] - y.sc[1]);
+    const totX = x.sc[0] + x.sc[1];
+    const totY = y.sc[0] + y.sc[1];
+    return (diffY * 2 + totY) - (diffX * 2 + totX);
+  });
+
+  const pick = sorted[0];
+  const tA = G.teams[pick.a];
+  const tB = G.teams[pick.b];
+  if (!tA || !tB) return null;
+
+  const [gA, gB] = pick.sc;
+  if (gA === gB) {
+    return {
+      week: completedWeek,
+      source: "Sky Sports · Premier Lig Özeti",
+      clubLogoName: tA.name,
+      teamIdx: pick.a,
+      title: `${tA.name} ile ${tB.name} Yenişemedi: ${gA}-${gB}!`,
+      body: `${completedWeek}. haftanın dikkat çeken mücadelesinde ${tA.name} ve ${tB.name} sahadan ${gA}-${gB}'lik beraberlikle ayrılarak puanları paylaştı.`
+    };
+  }
+
+  const winIdx = gA > gB ? pick.a : pick.b;
+  const loseIdx = gA > gB ? pick.b : pick.a;
+  const winTeam = G.teams[winIdx];
+  const loseTeam = G.teams[loseIdx];
+  const winGoals = Math.max(gA, gB);
+  const loseGoals = Math.min(gA, gB);
+
+  return {
+    week: completedWeek,
+    source: "Sky Sports · Haftanın Raporu",
+    clubLogoName: winTeam.name,
+    teamIdx: winIdx,
+    title: `${winTeam.name}, ${loseTeam.name} Karşısında ${winGoals}-${loseGoals} Galip!`,
+    body: `Premier Lig'in ${completedWeek}. haftasında ${winTeam.name}, etkili bir oyun sergileyerek ${loseTeam.name} engelini ${winGoals}-${loseGoals} ile geçti ve hanesine kritik 3 puan yazdırdı.`
+  };
+}
+
+function triggerWeeklyTeamNews(roundMatches, completedWeek) {
+  if (!LG) return;
+
+  // 1. Haftanın Premier Lig maçlarından dinamik özet haberi
+  const matchNews = generateDynamicMatchHeadline(roundMatches, completedWeek);
+  if (matchNews) {
+    LG.newsFeed.unshift(matchNews);
+  }
+
+  // 2. Birkaç haftada bir (her 2 haftada bir) Şampiyonlar Ligi maç sonucu haberi gelsin
+  let uclNewsItem = null;
+  if (completedWeek % 2 === 0) {
+    uclNewsItem = generateChampionsLeagueHeadline(completedWeek);
+    if (uclNewsItem) {
+      LG.newsFeed.unshift(uclNewsItem);
+    }
+  }
+
+  // 3. Aktif ligde yer alan rakip takımların yıldız haberleri (Sunderland vb. lig dışı takımlar elenir)
+  const activeRivalNames = new Set(G.teams.slice(1).map(tm => tm.name));
+  let availStar = PREMIER_STAR_NEWS_TEMPLATES.filter(t => activeRivalNames.has(t.club) && !LG.usedNewsIds.has(t.id));
+  if (!availStar.length) {
+    PREMIER_STAR_NEWS_TEMPLATES.forEach(t => LG.usedNewsIds.delete(t.id));
+    availStar = PREMIER_STAR_NEWS_TEMPLATES.filter(t => activeRivalNames.has(t.club));
+  }
+
+  let availWorld = WORLD_FOOTBALL_NEWS_TEMPLATES.filter(t => !LG.usedNewsIds.has(t.id));
+  if (!availWorld.length) {
+    WORLD_FOOTBALL_NEWS_TEMPLATES.forEach(t => LG.usedNewsIds.delete(t.id));
+    availWorld = [...WORLD_FOOTBALL_NEWS_TEMPLATES];
+  }
+
+  const pickWorldFirst = (completedWeek % 2 === 1);
+  let primaryItem = null;
+
+  if (availStar.length) {
+    const sTpl = availStar[(Math.random() * availStar.length) | 0];
+    LG.usedNewsIds.add(sTpl.id);
+    const targetTeamIdx = G.teams.findIndex((tm, idx) => idx > 0 && tm.name === sTpl.club);
+    const targetTeam = targetTeamIdx > 0 ? G.teams[targetTeamIdx] : null;
+    const modInfo = modifyRivalPlayerRating(targetTeam, sTpl.player, sTpl.delta);
+    const stRow = targetTeamIdx > 0 ? getSortedStandings().findIndex(s => s.teamIdx === targetTeamIdx) + 1 : null;
+    const rankStr = stRow ? ` (${sTpl.club} şu an ligde ${stRow}. sırada)` : "";
+
+    const starNewsObj = {
+      week: completedWeek,
+      source: sTpl.source,
+      clubLogoName: sTpl.club,
+      teamIdx: targetTeamIdx > 0 ? targetTeamIdx : null,
+      title: sTpl.title,
+      body: `${sTpl.body}${rankStr}`,
+      effectBadge: modInfo ? modInfo.badge : null,
+      effectPositive: modInfo ? modInfo.isPositive : true
+    };
+    LG.newsFeed.unshift(starNewsObj);
+    if (!pickWorldFirst) primaryItem = starNewsObj;
+  }
+
+  if (availWorld.length) {
+    const wTpl = availWorld[(Math.random() * availWorld.length) | 0];
+    LG.usedNewsIds.add(wTpl.id);
+    const worldNewsObj = {
+      week: completedWeek,
+      source: wTpl.source,
+      clubLogoName: wTpl.club,
+      teamIdx: null,
+      title: wTpl.title,
+      body: wTpl.body,
+      effectBadge: "Dünya Futbolu · Özel Gündem",
+      effectPositive: null
+    };
+    LG.newsFeed.unshift(worldNewsObj);
+    if (pickWorldFirst || !primaryItem) primaryItem = worldNewsObj;
+  }
+
+  // Her 4 haftada bir Şampiyonlar Ligi gecesi manşeti de bildirim olarak öne çıkabilsin
+  if (uclNewsItem && completedWeek % 4 === 0) {
+    primaryItem = uclNewsItem;
+  }
+
+  if (primaryItem) {
+    if (!LG.activeEvent && Math.random() < 0.85) {
+      LG.activeNews = primaryItem;
+    } else if (LG.activeEvent && Math.random() < 0.6) {
+      LG.pendingNewsAfterEvent = primaryItem;
+    }
+  }
+
+  if (LG.newsFeed.length > 50) {
+    LG.newsFeed = LG.newsFeed.slice(0, 50);
+  }
+}
+
+function triggerWeeklyCareerEvent() {
+  if (!LG || LG.week > LG.maxWeeks) return;
+  const userTeam = G.teams[0];
+  ensureTeamLineup(userTeam);
+
+  for (const pid of Object.keys(LG.injuries)) {
+    LG.injuries[pid]--;
+    if (LG.injuries[pid] <= 0) delete LG.injuries[pid];
+  }
+
+  const catalog = buildCareerEventsCatalog();
+
+  // Son maçta mağlup olunduysa Gazete Manşeti Eleştirisi öncelikli tetiklensin
+  if (LG.lastResult && LG.lastResult.userGoals < LG.lastResult.oppGoals) {
+    const mediaEv = catalog.find(e => e.id === "media_backlash");
+    if (mediaEv && (!LG.usedEventIds.has("media_backlash") || (LG.lastResult.oppGoals - LG.lastResult.userGoals >= 2))) {
+      LG.usedEventIds.add("media_backlash");
+      LG.activeEvent = mediaEv;
+      return;
+    }
+  }
+
+  // Arka planda %65 ihtimalle kulüp kararı olayı tetiklenir
+  if (Math.random() > 0.65) return;
+
+  let available = catalog.filter(e => e.id !== "media_backlash" && !LG.usedEventIds.has(e.id));
+  if (!available.length) {
+    LG.usedEventIds.clear();
+    available = catalog.filter(e => e.id !== "media_backlash");
+  }
+  const pickedEvent = available[(Math.random() * available.length) | 0];
+  if (pickedEvent) {
+    LG.usedEventIds.add(pickedEvent.id);
+    LG.activeEvent = pickedEvent;
+  }
+}
+
+function resolveCareerEvent(choiceIdx) {
+  if (!LG || !LG.activeEvent) return;
+  const ch = LG.activeEvent.choices[choiceIdx];
+  if (ch && ch.effect) {
+    const outcomeText = ch.effect();
+    LG.eventHistory.unshift({
+      week: LG.week,
+      title: LG.activeEvent.title,
+      outcome: outcomeText
+    });
+  }
+  LG.activeEvent = null;
+  if (LG.pendingNewsAfterEvent) {
+    LG.activeNews = LG.pendingNewsAfterEvent;
+    LG.pendingNewsAfterEvent = null;
+  }
+  render();
+}
+
+function dismissCareerNews() {
+  if (!LG) return;
+  LG.activeNews = null;
+  render();
+}
+
+function playCurrentWeekLeagueMatch(instant = false) {
+  if (!LG || LG.week > LG.maxWeeks) return;
+  if (M && M.tm) clearInterval(M.tm);
+  const roundMatches = LG.schedule[LG.week - 1];
+  if (!roundMatches) return;
+  const userMatch = roundMatches.find(m => m.a === 0 || m.b === 0);
+  if (!userMatch) return;
+
+  // Eğer bir şekilde kullanıcı maçı önceden tamamlanmışsa haftayı ilerlet
+  if (userMatch.done) {
+    roundMatches.forEach(m => {
+      if (!m.done) simulateBackgroundLeagueMatch(m);
+    });
+    LG.viewWeek = LG.week;
+    LG.week++;
+    return render();
+  }
+
+  matchSetup(userMatch.a, userMatch.b, `LG_W${LG.week}`);
+  if (instant) {
+    finishInstantly();
+  } else {
+    toggleKickoff();
+  }
+}
+
+function finalizeCareerWeekAfterUserMatch(scA, scB, goalsListA, goalsListB) {
+  if (!LG || LG.week > LG.maxWeeks) return;
+  const completedWeek = LG.week;
+  const roundMatches = LG.schedule[completedWeek - 1];
+  if (!roundMatches) return;
+
+  const userMatch = roundMatches.find(m => m.a === 0 || m.b === 0);
+  if (userMatch && !userMatch.done) {
+    userMatch.done = true;
+    userMatch.sc = [scA, scB];
+    updateLeagueTableForMatch(userMatch.a, userMatch.b, scA, scB);
+
+    const userGoals = userMatch.a === 0 ? scA : scB;
+    const oppGoals = userMatch.a === 0 ? scB : scA;
+    const oppIdx = userMatch.a === 0 ? userMatch.b : userMatch.a;
+    LG.lastResult = {
+      userGoals,
+      oppGoals,
+      oppName: G.teams[oppIdx] ? G.teams[oppIdx].name : "Rakip"
+    };
+
+    [
+      [userMatch.a, goalsListA],
+      [userMatch.b, goalsListB]
+    ].forEach(([tIdx, gArr]) => {
+      const tm = G.teams[tIdx];
+      if (!tm) return;
+      (gArr || []).forEach(g => {
+        if (g && g.scorer) {
+          const k = `${tIdx}_${g.scorer}`;
+          if (!LG.playerStats[k]) LG.playerStats[k] = { name: g.scorer, teamIdx: tIdx, teamName: tm.name, goals: 0, assists: 0 };
+          LG.playerStats[k].goals++;
+        }
+        if (g && g.assister) {
+          const kA = `${tIdx}_${g.assister}`;
+          if (!LG.playerStats[kA]) LG.playerStats[kA] = { name: g.assister, teamIdx: tIdx, teamName: tm.name, goals: 0, assists: 0 };
+          LG.playerStats[kA].assists++;
+        }
+      });
+    });
+  }
+
+  roundMatches.forEach(m => {
+    if (!m.done) simulateBackgroundLeagueMatch(m);
+  });
+
+  LG.viewWeek = completedWeek;
+  LG.week++;
+  triggerWeeklyCareerEvent();
+  triggerWeeklyTeamNews(roundMatches, completedWeek);
+}
+
+function simulateRestOfLeagueSeason() {
+  if (!LG) return;
+  while (LG.week <= LG.maxWeeks) {
+    const cw = LG.week;
+    const roundMatches = LG.schedule[cw - 1];
+    roundMatches.forEach(m => {
+      if (!m.done) simulateBackgroundLeagueMatch(m);
+    });
+    const matchNews = generateDynamicMatchHeadline(roundMatches, cw);
+    if (matchNews) LG.newsFeed.unshift(matchNews);
+    LG.viewWeek = cw;
+    LG.week++;
+  }
+  LG.activeEvent = null;
+  LG.activeNews = null;
+  LG.pendingNewsAfterEvent = null;
+  render();
+}
+
+function getSortedStandings() {
+  if (!LG) return [];
+  return [...LG.standings].sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    const gdA = a.gf - a.ga;
+    const gdB = b.gf - b.ga;
+    if (gdB !== gdA) return gdB - gdA;
+    return b.gf - a.gf;
+  });
+}
+
+function renderLeagueHub() {
+  if (!LG) return renderCareerLeagueSelector();
+  const userTeam = G.teams[0];
+  const sortedTable = getSortedStandings();
+  const userRank = sortedTable.findIndex(x => x.teamIdx === 0) + 1;
+  const isSeasonOver = LG.week > LG.maxWeeks;
+  const currentRoundMatches = !isSeasonOver ? LG.schedule[LG.week - 1] : [];
+  const nextUserMatch = currentRoundMatches.find(m => m.a === 0 || m.b === 0);
+  const oppIdx = nextUserMatch ? (nextUserMatch.a === 0 ? nextUserMatch.b : nextUserMatch.a) : null;
+  const oppTeam = oppIdx != null ? G.teams[oppIdx] : null;
+
+  const topScorers = Object.values(LG.playerStats)
+    .filter(x => x.goals > 0)
+    .sort((a, b) => b.goals - a.goals || b.assists - a.assists)
+    .slice(0, 15);
+
+  const topAssisters = Object.values(LG.playerStats)
+    .filter(x => x.assists > 0)
+    .sort((a, b) => b.assists - a.assists || b.goals - a.goals)
+    .slice(0, 15);
+
+  const fixtureWeek = Math.min(LG.maxWeeks, Math.max(1, LG.viewWeek || LG.week));
+  const weekMatches = LG.schedule[fixtureWeek - 1] || [];
+  const latestNews = LG.newsFeed && LG.newsFeed.length ? LG.newsFeed[0] : null;
+
+  app.innerHTML = hdr() + renderOnlineModal() + `
+    ${LG.activeEvent ? `
+      <div class="modal-backdrop">
+        <div class="modal-card" style="max-width:600px">
+          <span class="eyebrow" style="color:var(--t-elite)">${LG.activeEvent.tag}</span>
+          <h2 style="margin-top:4px">${LG.activeEvent.title}</h2>
+          <p style="margin:10px 0 16px;font-size:.92rem;line-height:1.5">${LG.activeEvent.desc}</p>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            ${LG.activeEvent.choices.map((ch, idx) => `
+              <button class="${idx === 0 ? 'pri' : ''}" style="justify-content:flex-start;text-align:left;padding:12px 14px" onclick="resolveCareerEvent(${idx})">
+                ${ch.label}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+    ` : (LG.activeNews ? `
+      <div class="modal-backdrop" onclick="dismissCareerNews()">
+        <div class="modal-card" style="max-width:560px;border-color:var(--t-elite)" onclick="event.stopPropagation()">
+          <div class="row" style="justify-content:space-between;margin-bottom:8px">
+            <span class="eyebrow" style="color:var(--t-elite);margin-bottom:0;display:inline-flex;align-items:center;gap:4px">${typeof mediaLogoBadge === "function" ? mediaLogoBadge(LG.activeNews.source) : ""}${LG.activeNews.source} · ${LG.activeNews.week}. Hafta Gündemi</span>
+            ${LG.activeNews.effectBadge ? `<span class="pos-badge ${LG.activeNews.effectPositive === false ? 'pos-FWD' : (LG.activeNews.effectPositive === true ? 'pos-MID' : 'pos-GK')}">${LG.activeNews.effectBadge}</span>` : `<span class="lg-tag">Gündem</span>`}
+          </div>
+          <div class="row" style="gap:12px;margin:8px 0 12px">
+            ${LG.activeNews.clubLogoName ? clubLogo(LG.activeNews.clubLogoName, 40) : (LG.activeNews.teamIdx != null && G.teams[LG.activeNews.teamIdx] ? renderTeamIdentityBadge(G.teams[LG.activeNews.teamIdx], 40) : "")}
+            <h2 style="font-size:1.18rem;line-height:1.3;flex:1">${LG.activeNews.title}</h2>
+          </div>
+          <p style="margin:0 0 18px;font-size:.91rem;line-height:1.55;color:var(--fg)">${LG.activeNews.body}</p>
+          <div class="row" style="justify-content:flex-end">
+            <button class="pri" onclick="dismissCareerNews()">Haberi Kapat & Devam Et →</button>
+          </div>
+        </div>
+      </div>
+    ` : "")}
+
+    <section class="hero">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div>
+          <span class="eyebrow">${LG.leagueName} · 2026-27 Kariyer Sezonu · ${isSeasonOver ? "Sezon Tamamlandı" : `${LG.week}. Hafta / ${LG.maxWeeks}`}</span>
+          <h1 class="club-cell" style="margin-top:4px">
+            ${renderTeamIdentityBadge(userTeam, 42)}
+            <span>${userTeam.name}</span>
+          </h1>
+          <p style="margin-top:6px">
+            Sıralama: <b style="color:var(--pri-bright)">${userRank}. Sıra</b> · Kasa: <b>${LG.clubFunds} M€</b> · Sponsor: <b style="color:var(--t-elite)">${LG.sponsorName}</b> · Moral/Form: <b style="color:${LG.moraleMod >= 0 ? 'var(--pri-bright)' : 'var(--bad)'}">${LG.moraleMod >= 0 ? '+' : ''}${LG.moraleMod}%</b>
+          </p>
+        </div>
+
+        <div style="background:var(--raised);padding:14px 18px;border-radius:var(--r);border:1px solid var(--border);min-width:290px">
+          ${!isSeasonOver && oppTeam ? `
+            <div class="muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Sıradaki Maç · ${LG.week}. Hafta</div>
+            <div class="row" style="justify-content:space-between;margin-bottom:10px">
+              <span class="club-cell"><b>${userTeam.name}</b></span>
+              <span class="muted">vs</span>
+              <span class="club-cell">${renderTeamIdentityBadge(oppTeam, 22)} <b>${oppTeam.name}</b></span>
+            </div>
+            <div class="row">
+              <button class="pri sm" style="flex:1" onclick="playCurrentWeekLeagueMatch(false)">Canlı Oynat (30 Sn)</button>
+              <button class="sm gold" style="flex:1" onclick="playCurrentWeekLeagueMatch(true)">Hızlı Simüle Et</button>
+            </div>
+          ` : `
+            <div style="text-align:center">
+              <span class="eyebrow" style="color:var(--t-elite)">Sezon Şampiyonu</span>
+              <h3 class="club-cell" style="justify-content:center;margin-top:6px;color:var(--t-elite)">
+                ${renderTeamIdentityBadge(G.teams[sortedTable[0].teamIdx], 28)}
+                <span>${G.teams[sortedTable[0].teamIdx].name} (${sortedTable[0].pts} Puan)</span>
+              </h3>
+            </div>
+          `}
+        </div>
+      </div>
+
+      ${latestNews ? `
+        <div style="margin-top:12px;padding:10px 14px;background:rgba(17,41,30,0.85);border:1px solid var(--border);border-left:3px solid var(--t-elite);border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div class="club-cell" style="font-size:.83rem;flex:1">
+            ${latestNews.clubLogoName ? clubLogo(latestNews.clubLogoName, 22) : (latestNews.teamIdx != null && G.teams[latestNews.teamIdx] ? renderTeamIdentityBadge(G.teams[latestNews.teamIdx], 22) : "")}
+            <span>
+              ${typeof mediaLogoBadge === "function" ? mediaLogoBadge(latestNews.source) : ""}<b style="color:var(--t-elite)">[${latestNews.source}]</b>
+              <b>${latestNews.title}</b>
+              ${latestNews.effectBadge ? ` <span class="pos-badge ${latestNews.effectPositive === false ? 'pos-FWD' : (latestNews.effectPositive === true ? 'pos-MID' : 'pos-GK')}" style="margin-left:4px">${latestNews.effectBadge}</span>` : ""}
+              — <span class="muted">${latestNews.body}</span>
+            </span>
+          </div>
+          <button class="sm" onclick="LG.tab='news';render()">Tüm Haberler (${LG.newsFeed.length})</button>
+        </div>
+      ` : ""}
+
+      ${LG.eventHistory.length ? `
+        <div class="ok-msg" style="margin:10px 0 0;font-size:.82rem">
+          <b>Son Kulüp Kararı (${Math.max(1, LG.eventHistory[0].week - 1)}. Hafta):</b> ${LG.eventHistory[0].outcome}
+        </div>
+      ` : ""}
+    </section>
+
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <div class="pos-tabs" style="margin-bottom:0">
+        <button class="pos-tab" aria-pressed="${LG.tab === 'standings'}" onclick="LG.tab='standings';render()">Puan Durumu (20 Takım)</button>
+        <button class="pos-tab" aria-pressed="${LG.tab === 'fixtures'}" onclick="LG.tab='fixtures';LG.viewWeek=Math.min(LG.maxWeeks,LG.week);render()">Haftalık Fikstür & Sonuçlar</button>
+        <button class="pos-tab" aria-pressed="${LG.tab === 'leaders'}" onclick="LG.tab='leaders';render()">Gol & Asist Krallığı</button>
+        <button class="pos-tab" aria-pressed="${LG.tab === 'news'}" onclick="LG.tab='news';render()">Lig Haberleri & Kulüp Günlüğü (${LG.newsFeed.length})</button>
+      </div>
+      <div class="row">
+        <button class="sm" onclick="S.view='result';render()">Kadro & İlk 11 Değiştir</button>
+        ${!isSeasonOver ? `<button class="sm" onclick="simulateRestOfLeagueSeason()">Tüm Sezonu Hızlı Tamamla</button>` : ""}
+      </div>
+    </div>
+
+    ${LG.tab === "standings" ? `
+      <div class="panel" style="margin-top:0">
+        <div class="scroll" style="max-height:680px">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:42px">#</th>
+                <th>Kulüp</th>
+                <th class="n">O</th>
+                <th class="n">G</th>
+                <th class="n">B</th>
+                <th class="n">M</th>
+                <th class="n">AG</th>
+                <th class="n">YG</th>
+                <th class="n">AV</th>
+                <th class="n">Puan</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedTable.map((row, idx) => {
+                const tm = G.teams[row.teamIdx];
+                const gd = row.gf - row.ga;
+                const isMe = row.teamIdx === 0;
+                return `
+                  <tr style="${isMe ? 'background:rgba(34,197,94,0.16);font-weight:700' : ''}">
+                    <td><b>${idx + 1}</b></td>
+                    <td>
+                      <span class="club-cell">
+                        ${renderTeamIdentityBadge(tm, 20)}
+                        <b>${tm.name}</b>
+                        ${idx === 0 && isSeasonOver ? '<span class="pos-badge pos-GK">ŞAMPİYON</span>' : ''}
+                      </span>
+                    </td>
+                    <td class="n">${row.played}</td>
+                    <td class="n">${row.w}</td>
+                    <td class="n">${row.d}</td>
+                    <td class="n">${row.l}</td>
+                    <td class="n">${row.gf}</td>
+                    <td class="n">${row.ga}</td>
+                    <td class="n">${gd > 0 ? '+' + gd : gd}</td>
+                    <td class="n"><b style="color:var(--pri-bright);font-size:.96rem">${row.pts}</b></td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    ` : ""}
+
+    ${LG.tab === "fixtures" ? `
+      <div class="panel" style="margin-top:0">
+        <div class="panel-head">
+          <h2>${fixtureWeek}. Hafta Maçları</h2>
+          <div class="row">
+            <button class="sm" ${fixtureWeek <= 1 ? "disabled" : ""} onclick="LG.viewWeek=${fixtureWeek - 1};render()">← Önceki Hafta</button>
+            <select onchange="LG.viewWeek=+this.value;render()">
+              ${Array.from({ length: LG.maxWeeks }, (_, i) => i + 1).map(w => `
+                <option value="${w}" ${w === fixtureWeek ? "selected" : ""}>${w}. Hafta</option>
+              `).join("")}
+            </select>
+            <button class="sm" ${fixtureWeek >= LG.maxWeeks ? "disabled" : ""} onclick="LG.viewWeek=${fixtureWeek + 1};render()">Sonraki Hafta →</button>
+          </div>
+        </div>
+        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:10px">
+          ${weekMatches.map(m => {
+            const tA = G.teams[m.a];
+            const tB = G.teams[m.b];
+            const isUserMatch = m.a === 0 || m.b === 0;
+            return `
+              <div style="background:${isUserMatch ? 'rgba(22,101,52,0.28)' : 'var(--raised)'};border:1px solid ${isUserMatch ? 'var(--pri-bright)' : 'var(--border)'};border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+                <span class="club-cell" style="flex:1">${renderTeamIdentityBadge(tA, 18)} <b>${tA.name}</b></span>
+                <span style="font-family:var(--mono);font-weight:700;padding:3px 9px;background:var(--surface);border-radius:6px;color:var(--pri-bright)">
+                  ${m.done && m.sc ? `${m.sc[0]} - ${m.sc[1]}` : "v"}
+                </span>
+                <span class="club-cell" style="flex:1;justify-content:flex-end;text-align:right"><b>${tB.name}</b> ${renderTeamIdentityBadge(tB, 18)}</span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    ` : ""}
+
+    ${LG.tab === "leaders" ? `
+      <div class="match-grid" style="margin-top:0">
+        <div class="panel" style="margin-top:0">
+          <h2>Gol Krallığı</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Oyuncu</th>
+                <th>Kulüp</th>
+                <th class="n">Gol</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${topScorers.map((p, idx) => `
+                <tr style="${p.teamIdx === 0 ? 'background:rgba(34,197,94,0.15)' : ''}">
+                  <td><b>${idx + 1}</b></td>
+                  <td><b>${p.name}</b></td>
+                  <td><span class="club-cell">${renderTeamIdentityBadge(G.teams[p.teamIdx], 16)} <span class="muted">${p.teamName}</span></span></td>
+                  <td class="n"><b style="color:var(--t-elite)">${p.goals}</b></td>
+                </tr>
+              `).join("") || `<tr><td colspan="4" class="muted">Henüz gol kaydedilmedi.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel" style="margin-top:0">
+          <h2>Asist Krallığı</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Oyuncu</th>
+                <th>Kulüp</th>
+                <th class="n">Asist</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${topAssisters.map((p, idx) => `
+                <tr style="${p.teamIdx === 0 ? 'background:rgba(34,197,94,0.15)' : ''}">
+                  <td><b>${idx + 1}</b></td>
+                  <td><b>${p.name}</b></td>
+                  <td><span class="club-cell">${renderTeamIdentityBadge(G.teams[p.teamIdx], 16)} <span class="muted">${p.teamName}</span></span></td>
+                  <td class="n"><b style="color:var(--pri-bright)">${p.assists}</b></td>
+                </tr>
+              `).join("") || `<tr><td colspan="4" class="muted">Henüz asist kaydedilmedi.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    ` : ""}
+
+    ${LG.tab === "news" ? `
+      <div class="match-grid" style="margin-top:0">
+        <div class="panel" style="margin-top:0">
+          <div class="panel-head">
+            <h2>Premier Lig Basın Bülteni & Takım Haberleri</h2>
+            <span class="muted" style="font-size:.78rem">Haftalık otomatik güncellenir</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;max-height:520px;overflow:auto;padding-right:4px">
+            ${LG.newsFeed.map(n => `
+              <div style="background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+                <div class="row" style="justify-content:space-between;margin-bottom:6px">
+                  <div class="row" style="gap:6px">
+                    <span class="lg-tag" style="color:var(--t-elite);display:inline-flex;align-items:center;gap:4px">${typeof mediaLogoBadge === "function" ? mediaLogoBadge(n.source) : ""}${n.source}</span>
+                    ${n.effectBadge ? `<span class="pos-badge ${n.effectPositive === false ? 'pos-FWD' : (n.effectPositive === true ? 'pos-MID' : 'pos-GK')}">${n.effectBadge}</span>` : ""}
+                  </div>
+                  <span class="min-tag">${n.week}. Hafta</span>
+                </div>
+                <div class="club-cell" style="margin-bottom:6px">
+                  ${n.clubLogoName ? clubLogo(n.clubLogoName, 22) : (n.teamIdx != null && G.teams[n.teamIdx] ? renderTeamIdentityBadge(G.teams[n.teamIdx], 22) : "")}
+                  <h3 style="font-size:.95rem">${n.title}</h3>
+                </div>
+                <p class="muted" style="margin:0;font-size:.82rem;line-height:1.45">${n.body}</p>
+              </div>
+            `).join("") || `<p class="muted">Henüz haber bülteni yayınlanmadı.</p>`}
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:0">
+          <div class="panel-head">
+            <h2>Sezon İçi Kulüp Karar Geçmişi</h2>
+            <span class="muted" style="font-size:.78rem">Arka planda tetiklenen olaylar</span>
+          </div>
+          <ul class="log" style="margin-top:6px;max-height:520px">
+            ${LG.eventHistory.map(ev => `
+              <li class="goal-item">
+                <span class="min-tag">${Math.max(1, ev.week - 1)}.H</span>
+                <span><b>${ev.title}:</b> ${ev.outcome}</span>
+              </li>
+            `).join("") || `<li class="muted">Henüz kulüp olayı yaşanmadı. Haftalar ilerledikçe arka planda gelişen olaylar ve aldığın kararlar burada listelenir.</li>`}
+          </ul>
+        </div>
+      </div>
+    ` : ""}
+  `;
+}
+
 // 11. DENGELİ MAÇ SİMÜLASYONU
 const tot = t => {
-  ensureTeamLineup(t);
-  return t.starters.reduce((s, p) => s + p.r, 0);
+  const rows = buildPitchRowsForTeam(t);
+  let sum = 0;
+  rows.forEach(r => {
+    r.players.forEach(p => {
+      sum += getEffectivePlayerRating(p, r.pos);
+    });
+  });
+  return sum;
 };
 const avgRating = t => {
   ensureTeamLineup(t);
@@ -1775,7 +3693,7 @@ function lineup(t) {
   return groupStartersForPitch(t);
 }
 
-const av = a => a.reduce((s, p) => s + p.r, 0) / (a.length || 1);
+const av = a => a.reduce((s, p) => s + (p.effR != null ? p.effR : p.r), 0) / (a.length || 1);
 
 function side(t) {
   const L = lineup(t);
@@ -1793,14 +3711,16 @@ function side(t) {
 
 function pickGoalscorer(L, sentOffSet = new Set()) {
   const weights = [];
-  for (const [k, posMult] of [["FWD", 5.2], ["MID", 2.5], ["DEF", 0.6]]) {
-    L[k].forEach(p => {
+  for (const [k, posMult] of [["FWD", 9.8], ["MID", 2.0], ["DEF", 0.3]]) {
+    (L[k] || []).forEach(p => {
       if (sentOffSet.has(p.id)) return;
-      const ratingFactor = Math.pow(Math.max(10, p.r - 55), 1.45);
-      weights.push([p, posMult * ratingFactor]);
+      const rVal = p.effR != null ? p.effR : p.r;
+      const ratingFactor = Math.pow(Math.max(8, rVal - 62), 2.35);
+      const starForwardBoost = (k === "FWD" && rVal >= 88) ? 1.75 : (k === "FWD" && rVal >= 85 ? 1.35 : 1.0);
+      weights.push([p, posMult * ratingFactor * starForwardBoost]);
     });
   }
-  if (!weights.length) return L.FWD[0] || L.MID[0];
+  if (!weights.length) return (L.FWD && L.FWD[0]) || (L.MID && L.MID[0]);
   let r = Math.random() * weights.reduce((s, a) => s + a[1], 0);
   for (const [p, w] of weights) {
     if ((r -= w) <= 0) return p;
@@ -1810,10 +3730,11 @@ function pickGoalscorer(L, sentOffSet = new Set()) {
 
 function pickAssister(L, scorer, sentOffSet = new Set()) {
   const weights = [];
-  for (const [k, posMult] of [["MID", 4.8], ["FWD", 3.1], ["DEF", 1.35], ["GK", 0.12]]) {
-    L[k].forEach(p => {
-      if (p.id === scorer.id || sentOffSet.has(p.id)) return;
-      const ratingFactor = Math.pow(Math.max(10, p.r - 55), 1.35);
+  for (const [k, posMult] of [["MID", 5.0], ["FWD", 3.4], ["DEF", 1.2], ["GK", 0.1]]) {
+    (L[k] || []).forEach(p => {
+      if ((scorer && p.id === scorer.id) || sentOffSet.has(p.id)) return;
+      const rVal = p.effR != null ? p.effR : p.r;
+      const ratingFactor = Math.pow(Math.max(8, rVal - 60), 1.7);
       weights.push([p, posMult * ratingFactor]);
     });
   }
@@ -1825,25 +3746,27 @@ function pickAssister(L, scorer, sentOffSet = new Set()) {
   return weights[0][0];
 }
 
-function generateMatchPlan(teamA, teamB, sA, sB) {
+function generateMatchPlan(teamA, teamB, sA, sB, allowExtraTime = true) {
   const scheduledByMin = Array.from({ length: 121 }, () => []);
   const sentOff = [new Set(), new Set()];
 
   const redCardMinutes = [null, null];
   [0, 1].forEach(sideIdx => {
-    if (Math.random() < 0.13) {
+    if (Math.random() < 0.12) {
       const rcMin = 20 + ((Math.random() * 56) | 0);
       redCardMinutes[sideIdx] = rcMin;
       const sObj = sideIdx === 0 ? sA : sB;
       const candidates = [...sObj.L.DEF, ...sObj.L.MID];
       const sentPlayer = candidates[(Math.random() * candidates.length) | 0];
-      sentOff[sideIdx].add(sentPlayer.id);
-      scheduledByMin[rcMin].push({
-        type: "red",
-        side: sideIdx,
-        min: rcMin,
-        player: sentPlayer
-      });
+      if (sentPlayer) {
+        sentOff[sideIdx].add(sentPlayer.id);
+        scheduledByMin[rcMin].push({
+          type: "red",
+          side: sideIdx,
+          min: rcMin,
+          player: sentPlayer
+        });
+      }
     }
   });
 
@@ -1863,7 +3786,7 @@ function generateMatchPlan(teamA, teamB, sA, sB) {
   if (absAdv < 0.55 || Math.random() < 0.24) {
     const drawScores = [[1, 1], [2, 2], [1, 1], [0, 0]];
     regGoals = drawScores[(Math.random() * drawScores.length) | 0];
-    goesToET = true;
+    goesToET = allowExtraTime;
   } else {
     const regWinner = netAdvantage >= 0 ? 0 : 1;
     const closePatterns = [[2, 1], [1, 0], [3, 2], [2, 0], [3, 1], [2, 1]];
@@ -1905,7 +3828,7 @@ function generateMatchPlan(teamA, teamB, sA, sB) {
 
   let goesToPenalties = false;
   let penaltyData = null;
-  let finalWinnerSide = regGoals[0] > regGoals[1] ? 0 : 1;
+  let finalWinnerSide = regGoals[0] > regGoals[1] ? 0 : (regGoals[1] > regGoals[0] ? 1 : -1);
 
   if (goesToET) {
     if (Math.random() < 0.48) {
@@ -1978,7 +3901,7 @@ function generateMatchPlan(teamA, teamB, sA, sB) {
 }
 
 function initTournament() {
-  if (!G) return;
+  if (!G || G.m.career) return;
   G.teams.forEach(ensureTeamLineup);
   const n = G.teams.length;
   if (n === 2) {
@@ -2059,12 +3982,15 @@ function simulateAllRemainingTournament() {
 function setupMatchFromNetwork(a, b, tourneyMatchId, plan) {
   if (M && M.tm) clearInterval(M.tm);
   G.teams.forEach(ensureTeamLineup);
-  if (!T) initTournament();
+  if (!T && !G.m.career) initTournament();
 
   const teamA = G.teams[a];
   const teamB = G.teams[b];
   const sA = side(teamA);
   const sB = side(teamB);
+
+  const initPerfA = (G.m.career && a === 0 && LG) ? 100 + LG.moraleMod : 100;
+  const initPerfB = (G.m.career && b === 0 && LG) ? 100 + LG.moraleMod : 100;
 
   M = {
     a,
@@ -2077,7 +4003,7 @@ function setupMatchFromNetwork(a, b, tourneyMatchId, plan) {
     sc: [0, 0],
     penSc: null,
     redCards: [0, 0],
-    perfFactor: [100, 100],
+    perfFactor: [initPerfA, initPerfB],
     shots: [0, 0],
     onTarget: [0, 0],
     saves: [0, 0],
@@ -2088,7 +4014,8 @@ function setupMatchFromNetwork(a, b, tourneyMatchId, plan) {
     lastHighlightAssist: null,
     log: [],
     run: 0,
-    speed: 1
+    speed: 1,
+    leagueWeekRecorded: false
   };
   S.view = "match";
   drawMatch();
@@ -2098,9 +4025,9 @@ function matchSetup(a = 0, b = 1, tourneyMatchId = null) {
   if (M && M.tm) clearInterval(M.tm);
   if (a === b) b = (a + 1) % G.teams.length;
   G.teams.forEach(ensureTeamLineup);
-  if (!T) initTournament();
+  if (!T && !G.m.career) initTournament();
 
-  if (!tourneyMatchId && T) {
+  if (!tourneyMatchId && T && !G.m.career) {
     const found = T.matches.find(x => !x.done && ((x.a === a && x.b === b) || (x.a === b && x.b === a)));
     if (found) {
       tourneyMatchId = found.id;
@@ -2113,7 +4040,8 @@ function matchSetup(a = 0, b = 1, tourneyMatchId = null) {
   const teamB = G.teams[b];
   const sA = side(teamA);
   const sB = side(teamB);
-  const plan = generateMatchPlan(teamA, teamB, sA, sB);
+  const isLeagueMatch = !!(G.m.career && tourneyMatchId && String(tourneyMatchId).startsWith("LG_"));
+  const plan = generateMatchPlan(teamA, teamB, sA, sB, !isLeagueMatch);
 
   setupMatchFromNetwork(a, b, tourneyMatchId, plan);
 
@@ -2280,7 +4208,7 @@ function stepMinute(m) {
 }
 
 function renderBracketHTML() {
-  if (!T) return "";
+  if (!T || G.m.career) return "";
   const nextPending = T.matches.find(x => !x.done && x.a != null && x.b != null);
   return `
     <div class="bracket-panel" id="bracket-box">
@@ -2377,16 +4305,18 @@ function renderPitchHTML(t, s, sideIdx) {
               const st = M.playerStats[p.id] || { goals: 0, assists: 0, red: false };
               const hiGoal = M.lastHighlightGoal === p.id ? "highlight-goal" : "";
               const hiAst = M.lastHighlightAssist === p.id ? "highlight-assist" : "";
+              const outOfPos = p.pos !== row.pos;
               const redCls = st.red ? "red-carded" : "";
               return `
-                <div class="pl ${hiGoal} ${hiAst} ${redCls}" title="${p.n} (${p.c})">
+                <div class="pl ${hiGoal} ${hiAst} ${redCls}" title="${p.n} (${p.c}${outOfPos ? ' · Mevki Dışı -10 Rtg' : ''})">
                   <div class="row" style="gap:3px">${clubLogo(p.c, 15)} ${posTag(p.pos)}</div>
                   <small>${p.n.split(" ").pop()}</small>
-                  ${(st.goals || st.assists || st.red) ? `
+                  ${(st.goals || st.assists || st.red || outOfPos) ? `
                     <div class="pl-events">
                       ${st.goals ? `<span class="ev-badge ev-goal">G${st.goals > 1 ? st.goals : ""}</span>` : ""}
                       ${st.assists ? `<span class="ev-badge ev-ast">A${st.assists > 1 ? st.assists : ""}</span>` : ""}
                       ${st.red ? `<span class="ev-badge ev-red">KK</span>` : ""}
+                      ${outOfPos ? `<span class="ev-badge ev-red" title="Mevki Dışı (-10 Reyting)">-10</span>` : ""}
                     </div>
                   ` : ""}
                 </div>
@@ -2476,6 +4406,7 @@ function renderGoalAssistSummary() {
 function drawMatch() {
   const A = G.teams[M.a], B = G.teams[M.b];
   const stageObj = T && M.tourneyMatchId ? T.matches.find(x => x.id === M.tourneyMatchId) : null;
+  const isCareerMatch = !!(G.m.career && M.tourneyMatchId && String(M.tourneyMatchId).startsWith("LG_"));
   const maxM = M.plan.maxMin || 90;
 
   app.innerHTML = hdr() + renderOnlineModal() + `
@@ -2483,28 +4414,36 @@ function drawMatch() {
 
     <div class="row" style="margin-bottom:12px;justify-content:space-between">
       <div class="row">
-        <label>Ev Sahibi:
-          <select id="sel-a" ${M.run ? "disabled" : ""} onchange="setMatchTeam('a', this.value)">
-            ${G.teams.map((t, i) => `<option value="${i}" ${i === M.a ? "selected" : ""}>${t.name}</option>`).join("")}
-          </select>
-        </label>
-        <span class="muted">vs</span>
-        <label>Deplasman:
-          <select id="sel-b" ${M.run ? "disabled" : ""} onchange="setMatchTeam('b', this.value)">
-            ${G.teams.map((t, i) => `<option value="${i}" ${i === M.b ? "selected" : ""}>${t.name}</option>`).join("")}
-          </select>
-        </label>
+        ${!isCareerMatch ? `
+          <label>Ev Sahibi:
+            <select id="sel-a" ${M.run ? "disabled" : ""} onchange="setMatchTeam('a', this.value)">
+              ${G.teams.map((t, i) => `<option value="${i}" ${i === M.a ? "selected" : ""}>${t.name}</option>`).join("")}
+            </select>
+          </label>
+          <span class="muted">vs</span>
+          <label>Deplasman:
+            <select id="sel-b" ${M.run ? "disabled" : ""} onchange="setMatchTeam('b', this.value)">
+              ${G.teams.map((t, i) => `<option value="${i}" ${i === M.b ? "selected" : ""}>${t.name}</option>`).join("")}
+            </select>
+          </label>
+        ` : `
+          <span class="eyebrow">Premier Lig · ${LG ? (M.leagueWeekRecorded ? LG.week - 1 : LG.week) : 1}. Hafta Karşılaşması</span>
+        `}
         <span class="muted" style="font-size:.8rem;margin-left:6px">Hız:</span>
         <button id="sp-1" class="sm ${M.speed === 1 ? 'pri' : ''}" onclick="setSimSpeed(1)">1x</button>
         <button id="sp-2" class="sm ${M.speed === 2 ? 'pri' : ''}" onclick="setSimSpeed(2)">2x</button>
         <button id="sp-4" class="sm ${M.speed === 4 ? 'pri' : ''}" onclick="setSimSpeed(4)">4x</button>
       </div>
       <div class="row">
-        <button class="pri" id="go-btn" onclick="toggleKickoff()">
-          ${M.min === 0 ? "Maçı Başlat (30 Sn)" : (M.min >= maxM ? "Tekrar Oynat" : (M.run ? "Duraklat" : "Devam Et"))}
-        </button>
-        <button id="inst-btn" ${M.min >= maxM ? "disabled" : ""} onclick="finishInstantly()">Anında Bitir</button>
-        <button onclick="if(M&&M.tm)clearInterval(M.tm);S.view='result';render()">Dizilişe Dön</button>
+        ${isCareerMatch && M.min >= maxM ? `
+          <button class="pri" onclick="S.view='league_hub';render()">Puan Durumu & Fikstüre Dön →</button>
+        ` : `
+          <button class="pri" id="go-btn" onclick="toggleKickoff()">
+            ${M.min === 0 ? "Maçı Başlat (30 Sn)" : (M.min >= maxM ? "Tekrar Oynat" : (M.run ? "Duraklat" : "Devam Et"))}
+          </button>
+          <button id="inst-btn" ${M.min >= maxM ? "disabled" : ""} onclick="finishInstantly()">Anında Bitir</button>
+        `}
+        ${isCareerMatch ? `<button onclick="if(M&&M.tm)clearInterval(M.tm);S.view='league_hub';render()">Lig Merkezine Dön</button>` : `<button onclick="if(M&&M.tm)clearInterval(M.tm);S.view='result';render()">Dizilişe Dön</button>`}
       </div>
     </div>
 
@@ -2576,8 +4515,13 @@ function refreshMatchLiveDOM() {
     mn.textContent = "0' Başlama Vuruşu";
   } else if (M.min >= maxM) {
     const A = G.teams[M.a], B = G.teams[M.b];
-    const winName = M.plan.winnerSide === 0 ? A.name : B.name;
-    mn.textContent = `${maxM}' Maç Bitti · Kazanan: ${winName}`;
+    if (M.sc[0] === M.sc[1] && !M.penSc) {
+      mn.textContent = `${maxM}' Maç Bitti · Berabere (${M.sc[0]}-${M.sc[1]})`;
+    } else {
+      const winSide = M.penSc ? (M.penSc[0] > M.penSc[1] ? 0 : 1) : (M.sc[0] > M.sc[1] ? 0 : 1);
+      const winName = winSide === 0 ? A.name : B.name;
+      mn.textContent = `${maxM}' Maç Bitti · Kazanan: ${winName}`;
+    }
     mn.classList.remove("live");
   } else {
     mn.textContent = `${M.min}' ${M.min > 90 ? "(Uzatmalar)" : ""}`;
@@ -2689,6 +4633,23 @@ function finishInstantly(fromNet = false) {
 function finishMatch() {
   M.run = 0;
   const A = G.teams[M.a], B = G.teams[M.b];
+  const isCareerMatch = !!(G.m.career && M.tourneyMatchId && String(M.tourneyMatchId).startsWith("LG_"));
+
+  if (isCareerMatch) {
+    if (!M.leagueWeekRecorded) {
+      M.leagueWeekRecorded = true;
+      finalizeCareerWeekAfterUserMatch(M.sc[0], M.sc[1], M.goalsList[0], M.goalsList[1]);
+    }
+    M.log.push({
+      min: 90,
+      isGoal: true,
+      isRed: false,
+      text: `<b>Lig Maçı Tamamlandı: ${A.name} ${M.sc[0]} - ${M.sc[1]} ${B.name}</b> · Diğer 9 Premier Lig maçı da simüle edildi.`
+    });
+    drawMatch();
+    return;
+  }
+
   let winnerIdx = M.sc[0] > M.sc[1] ? M.a : M.b;
 
   if (M.sc[0] === M.sc[1] && M.plan.goesToPenalties && M.plan.penaltyData) {
@@ -2749,6 +4710,8 @@ function render() {
   if (S.view === "clubs") return renderClubSelectScreen();
   if (!G || S.view === "setup") return setup();
   if (S.view === "identity") return renderIdentityScreen();
+  if (S.view === "league_select") return renderCareerLeagueSelector();
+  if (S.view === "league_hub") return renderLeagueHub();
   if (S.view === "match" && M) return drawMatch();
   if (G.k >= G.order.length || S.view === "result") return renderResult();
   return renderDraft();
